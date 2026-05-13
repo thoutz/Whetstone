@@ -1,0 +1,16 @@
+[Unit]
+Description=Whetstone Groq proxy
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/whetstone-proxy
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/whetstone-proxy.env
+ExecStart=/usr/bin/node /opt/whetstone-proxy/index.mjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

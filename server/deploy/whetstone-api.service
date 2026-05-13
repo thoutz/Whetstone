@@ -1,0 +1,16 @@
+[Unit]
+Description=Whetstone conversation REST API (Postgres sync)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/whetstone-api
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/whetstone-proxy.env
+ExecStart=/usr/bin/node /opt/whetstone-api/index.mjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+{
+  "name": "whetstone-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Thin OpenAI-compatible proxy to Groq — keeps API keys off the iOS binary",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

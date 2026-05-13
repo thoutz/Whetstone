@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>* { margin: 0; padding: 0; } body { background: #07090d; }</style>
+</head>
+<body>
+<canvas id="c" width="1024" height="1024"></canvas>
+<script>
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function drawSpark(ctx, x1, y1, x2, y2, w, color, dotR, dotColor) {
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 16;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.fillStyle = dotColor;
+  ctx.shadowColor = dotColor;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.arc(x2, y2, dotR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1024, H = 1024;
+
+// Background
+const bgGrad = ctx.createRadialGradient(512, 430, 80, 512, 430, 680);
+bgGrad.addColorStop(0, '#0f1824');
+bgGrad.addColorStop(1, '#07090d');
+ctx.fillStyle = bgGrad;
+ctx.fillRect(0, 0, W, H);
+
+// Whetstone block
+const stoneGrad = ctx.createLinearGradient(0, 645, 0, 775);
+stoneGrad.addColorStop(0, '#1c2535');
+stoneGrad.addColorStop(1, '#0c1220');
+ctx.save();
+ctx.shadowColor = 'rgba(0,0,0,0.8)';
+ctx.shadowBlur = 20;
+ctx.shadowOffsetY = 8;
+roundRect(ctx, 72, 645, 880, 132, 12);
+ctx.fillStyle = stoneGrad;
+ctx.fill();
+ctx.restore();
+
+// Stone top face highlight
+ctx.save();
+roundRect(ctx, 72, 645, 880, 20, 12);
+ctx.fillStyle = 'rgba(50,70,100,0.55)';
+ctx.fill();
+ctx.restore();
+
+// Stone grain lines
+ctx.strokeStyle = 'rgba(255,255,255,0.028)';
+ctx.lineWidth = 1;
+for (let y = 672; y < 778; y += 18) {
+  ctx.beginPath(); ctx.moveTo(72, y); ctx.lineTo(952, y); ctx.stroke();
+}
+
+// Stone top rim
+ctx.strokeStyle = 'rgba(70,100,150,0.5)';
+ctx.lineWidth = 1.5;
+ctx.beginPath(); ctx.moveTo(84, 645); ctx.lineTo(940, 645); ctx.stroke();
+
+// Blade shadow
+ctx.save();
+ctx.translate(10, 14);
+ctx.beginPath();
+ctx.moveTo(100, 158); ctx.lineTo(690, 622); ctx.lineTo(675, 665); ctx.lineTo(85, 202);
+ctx.closePath();
+ctx.fillStyle = 'rgba(0,0,0,0.45)';
+ctx.fill();
+ctx.restore();
+
+// Blade body
+const bladeGrad = ctx.createLinearGradient(100, 158, 690, 665);
+bladeGrad.addColorStop(0,    '#b8daff');
+bladeGrad.addColorStop(0.18, '#6ab8ff');
+bladeGrad.addColorStop(0.45, '#4ea3ff');
+bladeGrad.addColorStop(0.78, '#1e5898');
+bladeGrad.addColorStop(1,    '#071830');
+ctx.save();
+ctx.shadowColor = '#4ea3ff';
+ctx.shadowBlur = 18;
+ctx.beginPath();
+ctx.moveTo(100, 158); ctx.lineTo(690, 622); ctx.lineTo(675, 662); ctx.lineTo(85, 202);
+ctx.closePath();
+ctx.fillStyle = bladeGrad;
+ctx.fill();
+ctx.restore();
+
+// Blade edge
+ctx.save();
+ctx.shadowColor = '#c8e8ff';
+ctx.shadowBlur = 8;
+ctx.strokeStyle = 'rgba(200,232,255,0.75)';
+ctx.lineWidth = 2.5;
+ctx.lineCap = 'round';
+ctx.beginPath(); ctx.moveTo(85, 202); ctx.lineTo(675, 662); ctx.stroke();
+ctx.restore();
+
+// Blade spine
+ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+ctx.lineWidth = 1;
+ctx.beginPath(); ctx.moveTo(100, 158); ctx.lineTo(690, 622); ctx.stroke();
+
+// Blade face gleam
+ctx.save();
+ctx.globalAlpha = 0.18;
+const gleamGrad = ctx.createLinearGradient(200, 200, 400, 380);
+gleamGrad.addColorStop(0, 'rgba(255,255,255,0)');
+gleamGrad.addColorStop(0.4, 'rgba(255,255,255,0.9)');
+gleamGrad.addColorStop(1, 'rgba(255,255,255,0)');
+ctx.beginPath();
+ctx.moveTo(140, 165); ctx.lineTo(430, 165); ctx.lineTo(200, 405); ctx.lineTo(85, 202);
+ctx.closePath();
+ctx.fillStyle = gleamGrad;
+ctx.fill();
+ctx.restore();
+
+// Guard / bolster
+const guardGrad = ctx.createLinearGradient(68, 142, 114, 142);
+guardGrad.addColorStop(0, '#0e2040');
+guardGrad.addColorStop(0.5, '#2a4a72');
+guardGrad.addColorStop(1, '#0e2040');
+ctx.save();
+roundRect(ctx, 68, 140, 46, 78, 6);
+ctx.fillStyle = guardGrad;
+ctx.shadowColor = 'rgba(0,0,0,0.6)';
+ctx.shadowBlur = 8;
+ctx.fill();
+ctx.strokeStyle = 'rgba(100,160,220,0.4)';
+ctx.lineWidth = 1;
+ctx.stroke();
+ctx.restore();
+
+// Handle
+const handleGrad = ctx.createLinearGradient(75, 80, 105, 80);
+handleGrad.addColorStop(0, '#1a1a1a');
+handleGrad.addColorStop(0.4, '#2e2e2e');
+handleGrad.addColorStop(1, '#111111');
+ctx.save();
+roundRect(ctx, 74, 60, 36, 82, 5);
+ctx.fillStyle = handleGrad;
+ctx.fill();
+ctx.strokeStyle = 'rgba(80,80,80,0.6)';
+ctx.lineWidth = 2;
+for (let y = 70; y < 140; y += 12) {
+  ctx.beginPath(); ctx.moveTo(74, y); ctx.lineTo(110, y); ctx.stroke();
+}
+ctx.restore();
+
+// Spark contact glow
+const contactGlow = ctx.createRadialGradient(675, 658, 0, 675, 658, 100);
+contactGlow.addColorStop(0, 'rgba(255,140,30,0.55)');
+contactGlow.addColorStop(0.4, 'rgba(255,100,10,0.2)');
+contactGlow.addColorStop(1, 'rgba(255,80,0,0)');
+ctx.fillStyle = contactGlow;
+ctx.beginPath();
+ctx.arc(675, 658, 100, 0, Math.PI * 2);
+ctx.fill();
+
+// Sparks
+drawSpark(ctx, 675, 650, 814, 486, 5.5, '#ff7a1a', 7,   '#ffcc30');
+drawSpark(ctx, 675, 650, 848, 552, 3.8, '#ff8c30', 5,   '#ffaa50');
+drawSpark(ctx, 675, 650, 778, 462, 3.2, '#ff6010', 4.5, '#ffdd80');
+
+// Spark particles
+[
+  [858, 504, 3.5, '#ff7a1a', 0.65],
+  [845, 468, 2.5, '#ffaa50', 0.55],
+  [822, 455, 3,   '#ff9030', 0.60],
+  [790, 438, 2,   '#ffcc70', 0.48],
+  [868, 566, 2.5, '#ff8020', 0.42],
+  [882, 530, 2,   '#ff7010', 0.38],
+  [804, 428, 1.8, '#ffee90', 0.40],
+].forEach(([x, y, r, c, a]) => {
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.shadowColor = c;
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = c;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+});
+
+// Hot contact dot
+ctx.save();
+ctx.shadowColor = '#ff9a1a';
+ctx.shadowBlur = 24;
+ctx.fillStyle = '#fff5e0';
+ctx.globalAlpha = 0.95;
+ctx.beginPath();
+ctx.arc(675, 651, 6, 0, Math.PI * 2);
+ctx.fill();
+ctx.restore();
+
+// Vignette
+const vignette = ctx.createRadialGradient(512, 512, 300, 512, 512, 740);
+vignette.addColorStop(0, 'rgba(0,0,0,0)');
+vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
+ctx.fillStyle = vignette;
+ctx.fillRect(0, 0, W, H);
+
+// ── Text ─────────────────────────────────────────────────────
+// Subtle fade behind text so it reads over the dark bg
+const textFade = ctx.createLinearGradient(0, 790, 0, 1024);
+textFade.addColorStop(0, 'rgba(7,9,13,0)');
+textFade.addColorStop(0.25, 'rgba(7,9,13,0.55)');
+textFade.addColorStop(1, 'rgba(7,9,13,0.7)');
+ctx.fillStyle = textFade;
+ctx.fillRect(0, 790, W, 234);
+
+const font = 'Optima, "Gill Sans", "Gill Sans MT", "Trebuchet MS", sans-serif';
+
+// "Project" — smaller, steel-blue label
+ctx.save();
+ctx.textAlign = 'center';
+ctx.textBaseline = 'alphabetic';
+ctx.font = `300 58px ${font}`;
+ctx.letterSpacing = '6px';
+ctx.fillStyle = '#4ea3ff';
+ctx.globalAlpha = 0.75;
+ctx.shadowColor = '#4ea3ff';
+ctx.shadowBlur = 12;
+ctx.fillText('Project', 512, 878);
+ctx.restore();
+
+// "Whetstone" — larger, white
+ctx.save();
+ctx.textAlign = 'center';
+ctx.textBaseline = 'alphabetic';
+ctx.font = `400 108px ${font}`;
+ctx.letterSpacing = '2px';
+ctx.fillStyle = '#ffffff';
+ctx.globalAlpha = 0.92;
+ctx.shadowColor = 'rgba(255,255,255,0.3)';
+ctx.shadowBlur = 16;
+ctx.fillText('Whetstone', 512, 982);
+ctx.restore();
+
+window._iconReady = true;
+</script>
+</body>
+</html>

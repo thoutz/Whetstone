@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AI_APP_TOKEN</key>
+	<string></string>
+	<key>AI_BASE_URL</key>
+	<string>https://149-28-38-55.sslip.io/v1/chat/completions</string>
+	<key>AI_MODEL</key>
+	<string>meta-llama/llama-4-scout-17b-16e-instruct</string>
+	<key>SupabaseAnonKey</key>
+	<string>eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxeW1zcGhxa3NrYWxlcHJtbGRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNTQwOTksImV4cCI6MjA5MzkzMDA5OX0.SNeFt45UAPvWBZHk8ynwJzulHpKlDBfphNv_2DEdK9Y</string>
+	<key>SupabaseURL</key>
+	<string>https://eqymsphqkskaleprmlds.supabase.co</string>
+</dict>
+</plist>
