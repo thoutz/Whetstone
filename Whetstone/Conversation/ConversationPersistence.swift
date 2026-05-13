@@ -68,9 +68,13 @@ struct WireConversationDetailRecord: Decodable {
     let createdAt: Date?
     let updatedAt: Date?
     let messages: [WireUIMessageRowDTO]
+    let isPinned: Bool?
+    let projectId: UUID?
 
     enum CodingKeys: String, CodingKey {
         case id, title, totalTokensUsed, apiHistory, createdAt, updatedAt, messages
+        case isPinned = "is_pinned"
+        case projectId = "project_id"
     }
 
     init(from decoder: Decoder) throws {
@@ -82,6 +86,8 @@ struct WireConversationDetailRecord: Decodable {
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
         updatedAt = try c.decodeIfPresent(Date.self, forKey: .updatedAt)
         messages = try c.decodeIfPresent([WireUIMessageRowDTO].self, forKey: .messages) ?? []
+        isPinned = try c.decodeIfPresent(Bool.self, forKey: .isPinned)
+        projectId = try c.decodeIfPresent(UUID.self, forKey: .projectId)
     }
 }
 
@@ -211,6 +217,8 @@ enum ConversationHydration {
         conv.apiHistory = record.apiHistory.compactMap(Self.decodeApiMessage)
         conv.messages = try record.messages.map(Self.decodeUIMessageRow)
         conv.apiHistory = stripLegacySystemDuplicates(conv.apiHistory, systemPrompt: systemPrompt)
+        conv.isPinned = record.isPinned ?? false
+        conv.projectId = record.projectId
         return conv
     }
 
@@ -231,12 +239,18 @@ enum ConversationHydration {
     static func buildPatchJSON(for conversation: Conversation) throws -> Data {
         let hist: [Any] = conversation.apiHistory.map { apiMessageToJSON($0) }
         let ui: [Any] = conversation.messages.map { uiMessageToJSON($0) }
-        let dict: [String: Any] = [
+        var dict: [String: Any] = [
             "title": conversation.title,
             "total_tokens_used": conversation.totalTokensUsed,
             "api_history": hist,
-            "ui_messages": ui
+            "ui_messages": ui,
+            "is_pinned": conversation.isPinned
         ]
+        if let pid = conversation.projectId {
+            dict["project_id"] = pid.uuidString.lowercased()
+        } else {
+            dict["project_id"] = NSNull()
+        }
         return try JSONSerialization.data(withJSONObject: dict, options: [])
     }
 

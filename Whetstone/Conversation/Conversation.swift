@@ -8,6 +8,10 @@ struct Conversation: Identifiable {
     var totalTokensUsed: Int = 0
     var createdAt: Date = Date()
     var updatedAt: Date = Date()
+    /// Sidebar: pinned threads appear in the Pinned section (and stay in time groups).
+    var isPinned: Bool = false
+    /// Local organization; optional link to a user-created project.
+    var projectId: UUID?
 
     var isEmpty: Bool { messages.isEmpty }
 

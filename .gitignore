@@ -57,6 +57,11 @@ yarn-error.log*
 *.env
 secrets.*
 
+# ── Sensitive project docs ───────────────────────────────────────────────────
+project-docs/server-login-info.txt
+project-docs/server login info.rtf
+project-docs/groq-api-key-server-config.md
+
 # ── macOS ───────────────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble

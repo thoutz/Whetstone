@@ -63,6 +63,11 @@ struct DrawerContainer<Content: View>: View {
 struct SidebarView: View {
     @EnvironmentObject var store: ConversationStore
 
+    @State private var renamingConversationId: UUID?
+    @State private var renameDraft: String = ""
+    @State private var projectPickerConversationId: UUID?
+    @State private var showRenameSheet: Bool = false
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -71,6 +76,46 @@ struct SidebarView: View {
         }
         .background(Color(hex: "0b0e14"))
         .ignoresSafeArea(edges: .vertical)
+        .sheet(isPresented: Binding(
+            get: { projectPickerConversationId != nil },
+            set: { if !$0 { projectPickerConversationId = nil } }
+        )) {
+            if let id = projectPickerConversationId {
+                ProjectPickerSheet(conversationId: id)
+                    .environmentObject(store)
+            }
+        }
+        .sheet(isPresented: $showRenameSheet) {
+            NavigationStack {
+                Form {
+                    Section {
+                        TextField("Title", text: $renameDraft)
+                            .textInputAutocapitalization(.sentences)
+                    }
+                }
+                .navigationTitle("Rename")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showRenameSheet = false
+                            renamingConversationId = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            if let id = renamingConversationId {
+                                store.renameConversation(id, to: renameDraft)
+                            }
+                            showRenameSheet = false
+                            renamingConversationId = nil
+                        }
+                        .disabled(renameDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
     }
 
     // MARK: Header
@@ -106,11 +151,22 @@ struct SidebarView: View {
                 if store.conversations.filter({ !$0.isEmpty }).isEmpty {
                     emptyState
                 } else {
-                    ForEach(store.grouped, id: \.label) { group in
-                        if !group.items.filter({ !$0.isEmpty }).isEmpty {
-                            sectionHeader(group.label)
-                            ForEach(group.items.filter { !$0.isEmpty }) { conv in
-                                ConversationRow(conversation: conv)
+                    ForEach(store.sidebarSections, id: \.sectionId) { section in
+                        if !section.items.isEmpty {
+                            sectionHeader(section.label)
+                            ForEach(section.items) { conv in
+                                ConversationRow(
+                                    conversation: conv,
+                                    onRename: {
+                                        renamingConversationId = conv.id
+                                        renameDraft = conv.title
+                                        showRenameSheet = true
+                                    },
+                                    onAddToProject: {
+                                        projectPickerConversationId = conv.id
+                                    }
+                                )
+                                .id("\(section.sectionId)-\(conv.id.uuidString)")
                             }
                         }
                     }
@@ -146,6 +202,8 @@ struct SidebarView: View {
 private struct ConversationRow: View {
     @EnvironmentObject var store: ConversationStore
     let conversation: Conversation
+    let onRename: () -> Void
+    let onAddToProject: () -> Void
 
     private var isActive: Bool { store.activeId == conversation.id }
 
@@ -165,7 +223,13 @@ private struct ConversationRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                Spacer()
+                if conversation.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.35))
+                }
+
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -177,11 +241,119 @@ private struct ConversationRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                store.setPinned(conversation.id, pinned: !conversation.isPinned)
+            } label: {
+                Label(
+                    conversation.isPinned ? "Unpin" : "Pin",
+                    systemImage: conversation.isPinned ? "pin.slash" : "pin"
+                )
+            }
+            Button(action: onRename) {
+                Label("Rename", systemImage: "pencil")
+            }
+            Button(action: onAddToProject) {
+                Label("Add to project", systemImage: "tray.and.arrow.down.fill")
+            }
+            Divider()
+            Button(role: .destructive) {
+                store.delete(conversation.id)
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 store.delete(conversation.id)
             } label: {
                 Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+}
+
+// MARK: - Add to project sheet
+
+private struct ProjectPickerSheet: View {
+    @EnvironmentObject var store: ConversationStore
+    let conversationId: UUID
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var newProjectName: String = ""
+    @State private var showNewProjectAlert: Bool = false
+
+    private var conversation: Conversation? {
+        store.conversations.first { $0.id == conversationId }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Button {
+                    store.assignToProject(conversationId, projectId: nil)
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text("None")
+                            .foregroundStyle(Color.primary)
+                        Spacer()
+                        if conversation?.projectId == nil {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(WhetstoneTheme.blade)
+                        }
+                    }
+                }
+                ForEach(store.projects) { project in
+                    Button {
+                        store.assignToProject(conversationId, projectId: project.id)
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(project.name)
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            if conversation?.projectId == project.id {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(WhetstoneTheme.blade)
+                            }
+                        }
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color(hex: "0b0e14"))
+            .navigationTitle("Add to project")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        newProjectName = ""
+                        showNewProjectAlert = true
+                    } label: {
+                        Text("New Project")
+                    }
+                }
+            }
+            .alert("New project", isPresented: $showNewProjectAlert) {
+                TextField("Name", text: $newProjectName)
+                Button("Create") {
+                    let trimmed = newProjectName.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let project = store.createProject(name: trimmed) {
+                        store.assignToProject(conversationId, projectId: project.id)
+                        dismiss()
+                    }
+                    newProjectName = ""
+                }
+                .disabled(newProjectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Cancel", role: .cancel) {
+                    newProjectName = ""
+                }
+            } message: {
+                Text("Choose a name for this folder.")
             }
         }
     }

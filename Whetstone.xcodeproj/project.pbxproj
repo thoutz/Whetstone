@@ -31,6 +31,8 @@
 		AA00000000000000000000D6 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D5 /* ProfileView.swift */; };
 		AA00000000000000000000D8 /* ConversationPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D7 /* ConversationPersistence.swift */; };
 		AA00000000000000000000DA /* ConversationsAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D9 /* ConversationsAPIClient.swift */; };
+		AA00000000000000000000DC /* MentorMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000DB /* MentorMarkdownView.swift */; };
+		AA00000000000000000000E1 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E0 /* Project.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +62,8 @@
 		AA00000000000000000000D5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D7 /* ConversationPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationPersistence.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D9 /* ConversationsAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsAPIClient.swift; sourceTree = "<group>"; };
+		AA00000000000000000000DB /* MentorMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentorMarkdownView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000E0 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -106,6 +110,7 @@
 			children = (
 				AA0000000000000000000014 /* ChatMessage.swift */,
 				AA0000000000000000000015 /* ChatView.swift */,
+				AA00000000000000000000DB /* MentorMarkdownView.swift */,
 				AA0000000000000000000098 /* ChatViewModel.swift */,
 				AA0000000000000000000092 /* LiveCameraPiP.swift */,
 				AA0000000000000000000096 /* SVGDiagramWebView.swift */,
@@ -152,6 +157,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000080 /* Conversation.swift */,
+				AA00000000000000000000E0 /* Project.swift */,
 				AA0000000000000000000082 /* ConversationStore.swift */,
 				AA0000000000000000000084 /* SidebarView.swift */,
 				AA00000000000000000000D7 /* ConversationPersistence.swift */,
@@ -267,6 +273,8 @@
 				AA00000000000000000000D6 /* ProfileView.swift in Sources */,
 				AA00000000000000000000D8 /* ConversationPersistence.swift in Sources */,
 				AA00000000000000000000DA /* ConversationsAPIClient.swift in Sources */,
+				AA00000000000000000000DC /* MentorMarkdownView.swift in Sources */,
+				AA00000000000000000000E1 /* Project.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

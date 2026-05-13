@@ -32,6 +32,9 @@ struct ChatView: View {
     /// Bumped when the keyboard frame changes while composing; triggers scroll-to-bottom inside `ScrollViewReader`.
     @State private var transcriptScrollToBottomTick: Int = 0
 
+    /// Cleared when switching threads so the near-limit banner can show again if needed.
+    @State private var contextLimitBannerDismissed = false
+
     private var cameraAvailable: Bool {
         UIImagePickerController.isSourceTypeAvailable(.camera)
     }
@@ -44,9 +47,11 @@ struct ChatView: View {
                 hud
                 messageList
                 chipStripSection
+                contextLimitBannerSection
                 inputBar
             }
-            .animation(.spring(response: 0.28, dampingFraction: 0.88), value: store.visibleChipPayload != nil)
+            .animation(.spring(response: 0.28, dampingFraction: 0.88),
+                       value: store.visibleChipPayload != nil || store.shouldOfferContextLimitBanner)
 
             if pipSession.isRunning {
                 FloatingLiveCameraPiP(session: pipSession, dragOffset: $pipDragOffset)
@@ -93,6 +98,9 @@ struct ChatView: View {
             if !thinking {
                 composerKeyboardHookTick &+= 1
             }
+        }
+        .onChange(of: store.activeId) { _, _ in
+            contextLimitBannerDismissed = false
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             let overlap = Self.keyboardOverlap(from: note)
@@ -294,6 +302,21 @@ struct ChatView: View {
                 inputFocused = true
             }
             .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+
+    private var contextLimitBannerSection: some View {
+        Group {
+            if store.shouldOfferContextLimitBanner && !contextLimitBannerDismissed {
+                ContextLimitBanner(
+                    onNewChat: {
+                        guard !store.isThinking else { return }
+                        store.newConversation()
+                    },
+                    onDismiss: { contextLimitBannerDismissed = true }
+                )
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
     }
 
@@ -668,29 +691,113 @@ private struct UserMessageView: View {
 private struct MentorMessageView: View {
     let message: ChatMessage
 
+    @State private var copyFeedbackTick = 0
+
+    private var resolvedCopyPayload: (string: String, menuTitle: String)? {
+        Self.copyPayload(for: message)
+    }
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             BladeEdge()
                 .frame(width: WhetstoneTheme.bladeEdgeWidth + WhetstoneTheme.sparkDotSize)
 
-            VStack(alignment: .leading, spacing: 8) {
-                if !message.text.isEmpty {
-                    Text(message.text)
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.white.opacity(0.9))
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if let svg = message.svgPayload {
-                    MentorDiagramBlock(payload: svg)
-                }
-                if let meta = message.meta {
-                    HonedRow(meta: meta)
+            HStack(alignment: .top, spacing: 8) {
+                mentorContentColumn
+                    .contextMenu {
+                        if let payload = resolvedCopyPayload {
+                            Button(payload.menuTitle) {
+                                Self.copyToPasteboard(payload.string)
+                                copyFeedbackTick &+= 1
+                            }
+                        }
+                    }
+
+                if resolvedCopyPayload != nil {
+                    Button {
+                        guard let payload = resolvedCopyPayload else { return }
+                        Self.copyToPasteboard(payload.string)
+                        copyFeedbackTick &+= 1
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 14, weight: .regular))
+                    }
+                    .buttonStyle(MentorCopyAffordanceStyle())
+                    .accessibilityLabel(Self.copyAccessibilityLabel(for: message))
+                    .accessibilityHint(message.text.isEmpty ? "Copies the diagram caption to the clipboard." : "Copies the mentor reply to the clipboard.")
                 }
             }
 
             Spacer(minLength: 24)
         }
+        .sensoryFeedback(.success, trigger: copyFeedbackTick)
+    }
+
+    @ViewBuilder
+    private var mentorContentColumn: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !message.text.isEmpty {
+                MentorMarkdownView(text: message.text)
+            }
+            if let svg = message.svgPayload {
+                MentorDiagramBlock(payload: svg)
+            }
+            if let meta = message.meta {
+                HonedRow(meta: meta)
+            }
+            if let payload = resolvedCopyPayload {
+                HStack {
+                    Spacer(minLength: 0)
+                    ShareLink(item: payload.string) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .regular))
+                    }
+                    .buttonStyle(MentorCopyAffordanceStyle())
+                    .accessibilityLabel(Self.shareAccessibilityLabel(for: message))
+                    .accessibilityHint(Self.shareAccessibilityHint(for: message))
+                }
+            }
+        }
+    }
+
+    /// Clipboard string and context-menu title. Response text takes precedence; diagram caption only when prose is empty.
+    private static func copyPayload(for message: ChatMessage) -> (string: String, menuTitle: String)? {
+        if !message.text.isEmpty {
+            return (message.text, "Copy response")
+        }
+        if let raw = message.svgPayload?.caption,
+           !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return (raw, "Copy caption")
+        }
+        return nil
+    }
+
+    private static func copyAccessibilityLabel(for message: ChatMessage) -> String {
+        if !message.text.isEmpty { return "Copy response" }
+        return "Copy caption"
+    }
+
+    private static func shareAccessibilityLabel(for message: ChatMessage) -> String {
+        if !message.text.isEmpty { return "Share response" }
+        return "Share caption"
+    }
+
+    private static func shareAccessibilityHint(for message: ChatMessage) -> String {
+        if !message.text.isEmpty {
+            return "Opens the share sheet with the mentor reply."
+        }
+        return "Opens the share sheet with the diagram caption."
+    }
+
+    private static func copyToPasteboard(_ string: String) {
+        UIPasteboard.general.string = string
+    }
+}
+
+private struct MentorCopyAffordanceStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(configuration.isPressed ? WhetstoneTheme.blade : Color.white.opacity(0.35))
     }
 }
 
@@ -793,6 +900,51 @@ private struct StrikeButton: View {
         }
         .disabled(!active)
         .animation(.easeInOut(duration: 0.15), value: active)
+    }
+}
+
+// MARK: - Context limit banner
+
+private struct ContextLimitBanner: View {
+    let onNewChat: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: "gauge.with.dots.needle.67percent")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(WhetstoneTheme.ember.opacity(0.9))
+
+            Text("Conversation is nearing its limit")
+                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(Color.white.opacity(0.82))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 8)
+
+            Button("New chat", action: onNewChat)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(WhetstoneTheme.ember)
+                .buttonStyle(.plain)
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.white.opacity(0.38))
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss limit warning")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(WhetstoneTheme.surfaceHigh)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(WhetstoneTheme.ember.opacity(0.22))
+                .frame(height: 1)
+        }
     }
 }
 

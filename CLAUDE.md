@@ -26,6 +26,7 @@ Whetstone/
     MentorTools.swift         render_construction + render_chips + dispatcher
   Chat/
     ChatMessage.swift         UI-facing message model
+    MentorMarkdownView.swift  Mentor prose: markdown blocks + inline styling (no SPM)
     ChatView.swift            SwiftUI chat shell; camera + photo picker, chips strip, input
   Conversation/
     Conversation.swift        Sidebar row model + time buckets

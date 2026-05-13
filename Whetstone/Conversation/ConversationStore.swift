@@ -13,6 +13,8 @@ final class ConversationStore: ObservableObject {
     // MARK: - Published state
 
     @Published var conversations: [Conversation] = []
+    /// User-created project folders (device-local until a projects API exists).
+    @Published var projects: [Project] = []
     @Published var activeId: UUID?
     @Published var sidebarOpen = false
     @Published var isThinking = false
@@ -67,6 +69,7 @@ final class ConversationStore: ObservableObject {
     private func resetAfterLogout() {
         pendingChipOffer = nil
         conversations.removeAll()
+        projects.removeAll()
         activeId = nil
         startFresh()
     }
@@ -142,6 +145,21 @@ final class ConversationStore: ObservableObject {
         String(format: "%.1f%%", contextFraction * 100)
     }
 
+    /// Warning band for Option A — HUD gauge at or above this fraction.
+    var isNearContextLimit: Bool {
+        contextFraction >= Self.contextLimitWarnFraction
+    }
+
+    /// Auto-fork threshold for Option B — send routes to a fresh conversation with handoff context.
+    var isAtContextLimit: Bool {
+        contextFraction >= Self.contextLimitForkFraction
+    }
+
+    /// Banner: warn between warn threshold and fork threshold.
+    var shouldOfferContextLimitBanner: Bool {
+        isNearContextLimit && !isAtContextLimit
+    }
+
     // MARK: - Conversation management
 
     func newConversation() {
@@ -181,9 +199,75 @@ final class ConversationStore: ObservableObject {
         }
     }
 
+    func setPinned(_ id: UUID, pinned: Bool) {
+        guard let idx = index(of: id) else { return }
+        conversations[idx].isPinned = pinned
+        conversations[idx].updatedAt = Date()
+        schedulePersist(conversationId: id)
+    }
+
+    func renameConversation(_ id: UUID, to newTitle: String) {
+        guard let idx = index(of: id) else { return }
+        let trimmed = newTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        conversations[idx].title = String(trimmed.prefix(256))
+        conversations[idx].updatedAt = Date()
+        schedulePersist(conversationId: id)
+    }
+
+    func assignToProject(_ conversationId: UUID, projectId: UUID?) {
+        guard let idx = index(of: conversationId) else { return }
+        conversations[idx].projectId = projectId
+        conversations[idx].updatedAt = Date()
+        schedulePersist(conversationId: conversationId)
+    }
+
+    @discardableResult
+    func createProject(name: String) -> Project? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let project = Project(name: String(trimmed.prefix(120)))
+        projects.append(project)
+        projects.sort {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+        return project
+    }
+
     // MARK: - Grouped sidebar data
 
-    var grouped: [(label: String, items: [Conversation])] {
+    /// Sidebar renders pinned first, then chronological buckets, then per-project groups (same conversation may appear in multiple sections).
+    var sidebarSections: [(sectionId: String, label: String, items: [Conversation])] {
+        let nonempty: (Conversation) -> Bool = { !$0.isEmpty }
+        var out: [(String, String, [Conversation])] = []
+
+        let pinnedItems = conversations
+            .filter { $0.isPinned && nonempty($0) }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        if !pinnedItems.isEmpty {
+            out.append(("section.pinned", "Pinned", pinnedItems))
+        }
+
+        for (label, items) in timeGroupedBuckets {
+            let filtered = items.filter(nonempty)
+            if !filtered.isEmpty {
+                out.append(("section.time.\(label)", label, filtered))
+            }
+        }
+
+        for project in projects {
+            let items = conversations
+                .filter { $0.projectId == project.id && nonempty($0) }
+                .sorted { $0.updatedAt > $1.updatedAt }
+            if !items.isEmpty {
+                out.append(("section.project.\(project.id.uuidString)", project.name, items))
+            }
+        }
+
+        return out
+    }
+
+    private var timeGroupedBuckets: [(label: String, items: [Conversation])] {
         var buckets: [String: [Conversation]] = [:]
         let orderedKeys = ["Today", "Yesterday", "Previous 7 Days", "Previous 30 Days"]
         var monthKeys: [String] = []
@@ -224,6 +308,17 @@ final class ConversationStore: ObservableObject {
             apiText = trimmed
         }
 
+        if isAtContextLimit {
+            forkIntoNewConversation(
+                oldConversationIndex: idx,
+                userDisplayText: displayText,
+                apiText: apiText,
+                imageJPEGData: imageJPEGData,
+                isCameraCapture: isCameraCapture
+            )
+            return
+        }
+
         conversations[idx].messages.append(.user(displayText, images: imageJPEGData))
         conversations[idx].apiHistory.append(
             Message.user(apiText, imageJPEGData: imageJPEGData.isEmpty ? nil : imageJPEGData)
@@ -245,6 +340,83 @@ final class ConversationStore: ObservableObject {
 
     func dismissChipOfferForOther() {
         pendingChipOffer = nil
+    }
+
+    // MARK: - Context limit (fork)
+
+    private static let contextLimitWarnFraction: Double = 0.80
+    private static let contextLimitForkFraction: Double = 0.95
+    private static let contextLimitHandoffLineCount = 6
+
+    /// Moves the in-flight user send into a new conversation with a short transcript handoff (Option B).
+    private func forkIntoNewConversation(
+        oldConversationIndex: Int,
+        userDisplayText: String,
+        apiText: String,
+        imageJPEGData: [Data],
+        isCameraCapture: Bool
+    ) {
+        let snapshot = Self.handoffTranscript(from: conversations[oldConversationIndex].messages)
+
+        newConversation()
+
+        guard let newIdx = activeIndex else { return }
+
+        let handoffBody: String
+        if snapshot.isEmpty {
+            handoffBody = "This is a continuation of a previous session; the prior thread reached the conversation memory limit."
+        } else {
+            handoffBody = "This is a continuation of a previous session. Here is recent context:\n\n\(snapshot)"
+        }
+        conversations[newIdx].apiHistory.append(.system(handoffBody))
+
+        conversations[newIdx].messages.append(.user(userDisplayText, images: imageJPEGData))
+        conversations[newIdx].apiHistory.append(
+            Message.user(apiText, imageJPEGData: imageJPEGData.isEmpty ? nil : imageJPEGData)
+        )
+        conversations[newIdx].updatedAt = Date()
+
+        if conversations[newIdx].title == "New conversation" {
+            let titleSeed: String
+            if userDisplayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !imageJPEGData.isEmpty {
+                titleSeed = isCameraCapture ? "[Camera]" : "[Photo]"
+            } else {
+                titleSeed = userDisplayText
+            }
+            conversations[newIdx].title = String(titleSeed.prefix(48))
+        }
+
+        guard let newId = activeId else { return }
+        Task { await runLoop(conversationId: newId) }
+    }
+
+    private static func handoffTranscript(from messages: [ChatMessage]) -> String {
+        let slice = messages.suffix(contextLimitHandoffLineCount)
+        var lines: [String] = []
+        lines.reserveCapacity(slice.count)
+        for msg in slice {
+            switch msg.role {
+            case .user:
+                let trimmedText = msg.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedText.isEmpty {
+                    if !msg.attachedImages.isEmpty {
+                        lines.append("Student: [Photo attached]")
+                    }
+                } else {
+                    lines.append("Student: \(trimmedText)")
+                }
+            case .mentor:
+                let trimmedText = msg.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedText.isEmpty {
+                    lines.append("Mentor: \(trimmedText)")
+                } else if msg.svgPayload != nil {
+                    lines.append("Mentor: [Diagram]")
+                }
+            case .tool:
+                break
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: - Remote sync
