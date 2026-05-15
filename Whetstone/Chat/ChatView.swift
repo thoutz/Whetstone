@@ -2,11 +2,17 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
+private enum ComposerTextMetrics {
+    static let minHeight: CGFloat = 30
+    static let maxHeight: CGFloat = 120
+}
+
 struct ChatView: View {
 
     @EnvironmentObject var store: ConversationStore
     @EnvironmentObject private var auth: AuthManager
     @EnvironmentObject private var agentModeStore: AgentModeStore
+    @EnvironmentObject private var credentialVaultStore: CredentialVaultStore
 
     @State private var showProfile = false
 
@@ -20,6 +26,14 @@ struct ChatView: View {
     @State private var draft = ""
     @FocusState private var inputFocused: Bool
     @State private var stagedJPEGs: [Data] = []
+
+    /// Edit-reply composer (long-press a user bubble).
+    @State private var editingMessageId: UUID?
+    @State private var editDraft = ""
+    @State private var editStagedJPEGs: [Data] = []
+    @FocusState private var editFieldFocused: Bool
+    @State private var editPhotoPickerItems: [PhotosPickerItem] = []
+
     @State private var photoPickerItems: [PhotosPickerItem] = []
     /// Bumps when chat activity might leave UIKit holding the wrong keyboard plane for the composer.
     @State private var composerKeyboardHookTick = 0
@@ -38,6 +52,11 @@ struct ChatView: View {
     /// Cleared when switching threads so the near-limit banner can show again if needed.
     @State private var contextLimitBannerDismissed = false
 
+    @State private var composerContentHeight: CGFloat = ComposerTextMetrics.minHeight
+    @State private var editComposerContentHeight: CGFloat = ComposerTextMetrics.minHeight
+    /// Last keyboard overlap (pt) used for transcript scroll-along; -1 means unset / keyboard hidden baseline.
+    @State private var lastKeyboardOverlapForScroll: CGFloat = -1
+
     private var cameraAvailable: Bool {
         UIImagePickerController.isSourceTypeAvailable(.camera)
     }
@@ -51,7 +70,11 @@ struct ChatView: View {
                 messageList
                 chipStripSection
                 contextLimitBannerSection
-                inputBar
+                if editingMessageId != nil {
+                    editMessageComposer
+                } else {
+                    inputBar
+                }
             }
             .animation(.spring(response: 0.28, dampingFraction: 0.88),
                        value: store.visibleChipPayload != nil || store.shouldOfferContextLimitBanner)
@@ -81,6 +104,7 @@ struct ChatView: View {
             ProfileView()
                 .environmentObject(auth)
                 .environmentObject(agentModeStore)
+                .environmentObject(credentialVaultStore)
         }
         .alert("Camera access", isPresented: Binding(
             get: { pipSession.authorizationDenied },
@@ -105,25 +129,34 @@ struct ChatView: View {
         }
         .onChange(of: store.activeId) { _, _ in
             contextLimitBannerDismissed = false
+            cancelEditingMessage()
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             let overlap = Self.keyboardOverlap(from: note)
             if overlap > 1 { keyboardIsVisible = true }
             keyboardBottomInset = overlap
-            if inputFocused, overlap > 1 {
-                transcriptScrollToBottomTick &+= 1
+            if inputFocused || editFieldFocused, overlap > 1 {
+                let prev = lastKeyboardOverlapForScroll
+                let baseline = overlap
+                // Avoid scrolling the transcript on every sub-pixel keyboard tweak (fixes “slides away” while typing).
+                let delta = abs(baseline - max(prev, 0))
+                if prev < 0 || delta > 18 {
+                    transcriptScrollToBottomTick &+= 1
+                    lastKeyboardOverlapForScroll = baseline
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             guard keyboardIsVisible else { return }
             keyboardIsVisible = false
             keyboardBottomInset = 0
+            lastKeyboardOverlapForScroll = -1
         }
     }
 
     /// Extra scrollable space under the transcript while the composer is focused and the keyboard is visible.
     private var transcriptKeyboardBottomPadding: CGFloat {
-        guard inputFocused, keyboardBottomInset > 1 else { return 0 }
+        guard inputFocused || editFieldFocused, keyboardBottomInset > 1 else { return 0 }
         return keyboardBottomInset
     }
 
@@ -222,8 +255,17 @@ struct ChatView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 24) {
                         ForEach(store.messages) { msg in
-                            MessageRow(message: msg)
+                            MessageRow(
+                                message: msg,
+                                isThinking: store.isThinking,
+                                onBeginEditingUserMessage: beginEditingMessage
+                            )
                                 .id(msg.id)
+                        }
+                        if store.isThinking {
+                            ThinkingRow()
+                                .id("thinking-anchor")
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                         Color.clear
                             .frame(height: 1)
@@ -249,7 +291,7 @@ struct ChatView: View {
                         )
                     }
                 )
-                .scrollDismissesKeyboard(.interactively)
+                .scrollDismissesKeyboard(.never)
                 .onPreferenceChange(ChatScrollViewportBottomKey.self) { y in
                     DispatchQueue.main.async {
                         scrollViewportBottomGlobalY = y
@@ -273,6 +315,12 @@ struct ChatView: View {
                         scheduleTranscriptScrollToBottom(proxy: proxy)
                     }
                 }
+                .onChange(of: editFieldFocused) { _, focused in
+                    if focused {
+                        composerKeyboardHookTick &+= 1
+                        scheduleTranscriptScrollToBottom(proxy: proxy)
+                    }
+                }
                 .onChange(of: store.messages.count) { _, _ in
                     showJumpToLatest = false
                     withAnimation(.easeOut(duration: 0.2)) {
@@ -282,6 +330,20 @@ struct ChatView: View {
                 .onChange(of: store.activeId) { _, _ in
                     showJumpToLatest = false
                     proxy.scrollTo("bottom", anchor: .bottom)
+                }
+                .onChange(of: store.isThinking) { _, thinking in
+                    showJumpToLatest = false
+                    if thinking {
+                        DispatchQueue.main.async {
+                            withAnimation(.easeOut(duration: 0.28)) {
+                                proxy.scrollTo("thinking-anchor", anchor: .bottom)
+                            }
+                        }
+                    } else {
+                        withAnimation(.easeOut(duration: 0.28)) {
+                            proxy.scrollTo("bottom", anchor: .bottom)
+                        }
+                    }
                 }
 
                 if showJumpToLatest && !store.messages.isEmpty {
@@ -334,6 +396,125 @@ struct ChatView: View {
                     onDismiss: { contextLimitBannerDismissed = true }
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+    }
+
+    private var editMessageComposer: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(WhetstoneTheme.ember.opacity(0.35))
+                .frame(height: 2)
+
+            VStack(spacing: 10) {
+                HStack {
+                    Text("EDIT MESSAGE")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(Color.white.opacity(0.45))
+                    Spacer(minLength: 8)
+                    Button("Cancel", action: cancelEditingMessage)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(WhetstoneTheme.blade)
+                        .buttonStyle(.plain)
+                }
+
+                HStack(spacing: 6) {
+                    PhotosPicker(
+                        selection: $editPhotoPickerItems,
+                        maxSelectionCount: AttachmentLimits.maxImages,
+                        matching: .images,
+                        photoLibrary: .shared()
+                    ) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(Color.white.opacity(editStagedJPEGs.count >= AttachmentLimits.maxImages ? 0.15 : 0.42))
+                            .frame(width: 36, height: 36)
+                    }
+                    .disabled(store.isThinking || editStagedJPEGs.count >= AttachmentLimits.maxImages)
+                    .accessibilityLabel("Choose photo from library")
+
+                    Spacer()
+                }
+
+                if !editStagedJPEGs.isEmpty {
+                    editStagedAttachmentsStrip
+                }
+
+                HStack(alignment: .bottom, spacing: 12) {
+                    ZStack(alignment: .leading) {
+                        if editDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("›  add missing context…")
+                                .font(.system(size: 15, design: .monospaced))
+                                .foregroundStyle(Color.white.opacity(0.2))
+                                .padding(.leading, 1)
+                                .allowsHitTesting(false)
+                        }
+
+                        PastableTextEditor(
+                            text: $editDraft,
+                            contentHeight: $editComposerContentHeight,
+                            isFocused: Binding(
+                                get: { editFieldFocused },
+                                set: { editFieldFocused = $0 }
+                            ),
+                            keyboardHookTick: composerKeyboardHookTick,
+                            accessibilityIdentifier: "whetstoneEditComposerField",
+                            isEnabled: !store.isThinking,
+                            onImagePasted: { jpeg in
+                                guard editStagedJPEGs.count < AttachmentLimits.maxImages else { return }
+                                editStagedJPEGs.append(jpeg)
+                            }
+                        )
+                        .frame(height: editComposerContentHeight, alignment: .topLeading)
+
+                        ComposerAsciiKeyboardHook(tick: composerKeyboardHookTick, isFocused: editFieldFocused)
+                            .frame(width: 4, height: 4)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
+
+                    StrikeButton(active: canCommitEdit && !store.isThinking, action: commitEditingMessage)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(WhetstoneTheme.obsidian)
+            .onChange(of: editPhotoPickerItems) { _, items in
+                guard !items.isEmpty else { return }
+                Task { await loadEditPhotos(from: items) }
+            }
+        }
+    }
+
+    private var editStagedAttachmentsStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(Array(editStagedJPEGs.enumerated()), id: \.offset) { index, data in
+                    ZStack(alignment: .topTrailing) {
+                        if let ui = UIImage(data: data) {
+                            Image(uiImage: ui)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(WhetstoneTheme.blade.opacity(0.25), lineWidth: 1)
+                                )
+                        }
+                        Button {
+                            editStagedJPEGs.remove(at: index)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(Color.white, Color.black.opacity(0.55))
+                                .font(.system(size: 18))
+                        }
+                        .offset(x: 7, y: -7)
+                        .disabled(store.isThinking)
+                    }
+                }
             }
         }
     }
@@ -404,28 +585,37 @@ struct ChatView: View {
                 }
 
                 HStack(alignment: .bottom, spacing: 12) {
-                    TextField("", text: $draft, axis: .vertical)
-                        .focused($inputFocused)
-                        .lineLimit(1...5)
-                        .font(.system(size: 15, design: .monospaced))
-                        .foregroundStyle(Color.white)
-                        .tint(WhetstoneTheme.ember)
-                        .keyboardType(.asciiCapable)
-                        .textInputAutocapitalization(.sentences)
-                        .submitLabel(.send)
-                        .onSubmit(send)
-                        .placeholder(when: draft.isEmpty) {
+                    ZStack(alignment: .leading) {
+                        if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Text("›  ready to strike")
                                 .font(.system(size: 15, design: .monospaced))
                                 .foregroundStyle(Color.white.opacity(0.2))
-                        }
-                        .background(alignment: .leading) {
-                            ComposerAsciiKeyboardHook(tick: composerKeyboardHookTick, isFocused: inputFocused)
-                                .frame(width: 4, height: 4)
+                                .padding(.leading, 1)
                                 .allowsHitTesting(false)
-                                .accessibilityHidden(true)
                         }
-                        .id("whetstoneChatComposerField")
+
+                        PastableTextEditor(
+                            text: $draft,
+                            contentHeight: $composerContentHeight,
+                            isFocused: Binding(
+                                get: { inputFocused },
+                                set: { inputFocused = $0 }
+                            ),
+                            keyboardHookTick: composerKeyboardHookTick,
+                            accessibilityIdentifier: "whetstoneChatComposerField",
+                            isEnabled: !store.isThinking,
+                            onImagePasted: { jpeg in
+                                guard stagedJPEGs.count < AttachmentLimits.maxImages else { return }
+                                stagedJPEGs.append(jpeg)
+                            }
+                        )
+                        .frame(height: composerContentHeight, alignment: .topLeading)
+
+                        ComposerAsciiKeyboardHook(tick: composerKeyboardHookTick, isFocused: inputFocused)
+                            .frame(width: 4, height: 4)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
+                    }
 
                     StrikeButton(active: canSend, action: send)
                 }
@@ -483,6 +673,7 @@ struct ChatView: View {
         let bundle = stagedJPEGs
         draft = ""
         stagedJPEGs = []
+        composerContentHeight = ComposerTextMetrics.minHeight
         store.send(text, imageJPEGData: bundle)
     }
 
@@ -506,6 +697,237 @@ struct ChatView: View {
         }
     }
 
+    private var canCommitEdit: Bool {
+        let trimmed = editDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (!trimmed.isEmpty || !editStagedJPEGs.isEmpty) && !store.isThinking
+    }
+
+    private func beginEditingMessage(_ message: ChatMessage) {
+        guard message.isUserTurn, !store.isThinking else { return }
+        inputFocused = false
+        editingMessageId = message.id
+        editDraft = message.text
+        editStagedJPEGs = message.attachedImages
+        editComposerContentHeight = ComposerTextMetrics.minHeight
+        composerKeyboardHookTick &+= 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            editFieldFocused = true
+        }
+    }
+
+    private func cancelEditingMessage() {
+        editingMessageId = nil
+        editDraft = ""
+        editStagedJPEGs = []
+        editPhotoPickerItems = []
+        editFieldFocused = false
+        editComposerContentHeight = ComposerTextMetrics.minHeight
+        composerKeyboardHookTick &+= 1
+    }
+
+    private func commitEditingMessage() {
+        guard let id = editingMessageId else { return }
+        let text = editDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (!text.isEmpty || !editStagedJPEGs.isEmpty), !store.isThinking else { return }
+        let bundle = editStagedJPEGs
+        cancelEditingMessage()
+        store.editMessage(id: id, newText: text, newImages: bundle)
+    }
+
+    private func loadEditPhotos(from items: [PhotosPickerItem]) async {
+        let budget = AttachmentLimits.maxImages - editStagedJPEGs.count
+        guard budget > 0 else {
+            await MainActor.run { editPhotoPickerItems = [] }
+            return
+        }
+        var datas: [Data] = []
+        for item in items.prefix(budget) {
+            if let raw = try? await item.loadTransferable(type: Data.self),
+               let ui = UIImage(data: raw),
+               let jpeg = AttachmentEncoder.jpeg(from: ui) {
+                datas.append(jpeg)
+            }
+        }
+        await MainActor.run {
+            editStagedJPEGs.append(contentsOf: datas)
+            editPhotoPickerItems = []
+        }
+    }
+
+}
+
+/// Multiline composer with image paste interception (UIPasteboard image → staged JPEG attachments).
+private final class PastingComposerTextView: UITextView {
+    var onImagePasted: ((Data) -> Void)?
+    var onBoundsChange: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onBoundsChange?()
+    }
+
+    override func paste(_ sender: Any?) {
+        let pb = UIPasteboard.general
+        let imageCandidate: UIImage?
+        if let img = pb.image {
+            imageCandidate = img
+        } else if let imgs = pb.images, let first = imgs.first {
+            imageCandidate = first
+        } else {
+            imageCandidate = nil
+        }
+        if let ui = imageCandidate,
+           let jpeg = AttachmentEncoder.jpeg(from: ui) {
+            onImagePasted?(jpeg)
+            return
+        }
+        super.paste(sender)
+    }
+}
+
+private struct PastableTextEditor: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var contentHeight: CGFloat
+    @Binding var isFocused: Bool
+    var keyboardHookTick: Int
+    var accessibilityIdentifier: String
+    var isEnabled: Bool
+    var onImagePasted: ((Data) -> Void)?
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> PastingComposerTextView {
+        let tv = PastingComposerTextView()
+        let coordinator = context.coordinator
+        tv.delegate = coordinator
+        tv.backgroundColor = .clear
+        tv.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
+        tv.textColor = .white
+        tv.tintColor = UIColor(WhetstoneTheme.ember)
+        tv.textContainerInset = UIEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
+        tv.textContainer.lineFragmentPadding = 0
+        tv.keyboardType = .asciiCapable
+        tv.autocorrectionType = .yes
+        tv.autocapitalizationType = .sentences
+        tv.smartDashesType = .no
+        tv.smartQuotesType = .no
+        tv.smartInsertDeleteType = .yes
+        tv.isScrollEnabled = false
+        tv.text = text
+        tv.accessibilityIdentifier = accessibilityIdentifier
+        tv.onImagePasted = onImagePasted
+        tv.onBoundsChange = { [weak tv, weak coordinator] in
+            guard let tv else { return }
+            coordinator?.onTextViewBoundsChanged(tv)
+        }
+        coordinator.lastLayoutWidth = 0
+        return tv
+    }
+
+    func updateUIView(_ uiView: PastingComposerTextView, context: Context) {
+        context.coordinator.parent = self
+
+        uiView.onImagePasted = onImagePasted
+        uiView.isEditable = isEnabled
+        uiView.accessibilityIdentifier = accessibilityIdentifier
+
+        uiView.onBoundsChange = { [weak uiView, weak coordinator = context.coordinator] in
+            guard let tv = uiView else { return }
+            coordinator?.onTextViewBoundsChanged(tv)
+        }
+
+        let textChanged = uiView.text != text
+        if textChanged {
+            uiView.text = text
+        }
+
+        let focusChanged =
+            context.coordinator.lastSyncedFocus != isFocused
+            || context.coordinator.lastSyncedEnabled != isEnabled
+            || context.coordinator.lastSyncedHookTick != keyboardHookTick
+
+        if focusChanged {
+            context.coordinator.lastSyncedFocus = isFocused
+            context.coordinator.lastSyncedEnabled = isEnabled
+            context.coordinator.lastSyncedHookTick = keyboardHookTick
+            DispatchQueue.main.async {
+                context.coordinator.applyFocus(tv: uiView)
+                uiView.keyboardType = .asciiCapable
+            }
+        }
+
+        if textChanged || focusChanged {
+            context.coordinator.remeasureContentHeight(uiView)
+        }
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: PastableTextEditor
+        var lastSyncedFocus: Bool?
+        var lastSyncedEnabled: Bool?
+        var lastSyncedHookTick: Int?
+        /// Width last used for height remeasure (skip redundant layout churn).
+        var lastLayoutWidth: CGFloat = -1
+        private var programmaticResign = false
+
+        init(_ parent: PastableTextEditor) {
+            self.parent = parent
+        }
+
+        func onTextViewBoundsChanged(_ tv: UITextView) {
+            let w = tv.bounds.width
+            guard w > 1, abs(w - lastLayoutWidth) > 0.5 else { return }
+            lastLayoutWidth = w
+            remeasureContentHeight(tv)
+        }
+
+        func remeasureContentHeight(_ tv: UITextView) {
+            let w = max(tv.bounds.width, 1)
+            tv.layoutManager.ensureLayout(for: tv.textContainer)
+            let fitted = tv.sizeThatFits(CGSize(width: w, height: .greatestFiniteMagnitude)).height
+            let display = min(
+                max(fitted, ComposerTextMetrics.minHeight),
+                ComposerTextMetrics.maxHeight
+            )
+            tv.isScrollEnabled = fitted > ComposerTextMetrics.maxHeight + 0.5
+            if abs(parent.contentHeight - display) > 0.5 {
+                parent.contentHeight = display
+            }
+        }
+
+        func applyFocus(tv: UITextView) {
+            let shouldFocus = parent.isFocused && parent.isEnabled
+            if shouldFocus, !tv.isFirstResponder {
+                tv.becomeFirstResponder()
+            } else if !shouldFocus, tv.isFirstResponder {
+                programmaticResign = true
+                tv.resignFirstResponder()
+            }
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text ?? ""
+            remeasureContentHeight(textView)
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            if !parent.isFocused {
+                parent.isFocused = true
+            }
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            if programmaticResign {
+                programmaticResign = false
+                return
+            }
+            if parent.isFocused {
+                parent.isFocused = false
+            }
+        }
+    }
 }
 
 /// Multiline SwiftUI `TextField` bridges to `UITextView`. iOS can restore the numbers/symbols keyboard plane after
@@ -657,11 +1079,19 @@ private struct ChipsStrip: View {
 
 private struct MessageRow: View {
     let message: ChatMessage
+    let isThinking: Bool
+    let onBeginEditingUserMessage: (ChatMessage) -> Void
 
     var body: some View {
         switch message.role {
-        case .user:    UserMessageView(message: message)
-        case .mentor, .tool: MentorMessageView(message: message)
+        case .user:
+            UserMessageView(
+                message: message,
+                isThinking: isThinking,
+                onBeginEditingUserMessage: onBeginEditingUserMessage
+            )
+        case .mentor, .tool:
+            MentorMessageView(message: message)
         }
     }
 }
@@ -670,6 +1100,8 @@ private struct MessageRow: View {
 
 private struct UserMessageView: View {
     let message: ChatMessage
+    let isThinking: Bool
+    let onBeginEditingUserMessage: (ChatMessage) -> Void
 
     var body: some View {
         HStack {
@@ -701,6 +1133,35 @@ private struct UserMessageView: View {
                 }
             }
         }
+        .contextMenu {
+            if message.isUserTurn, !isThinking {
+                Button("Edit message") {
+                    onBeginEditingUserMessage(message)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - In-transcript thinking
+
+private struct ThinkingRow: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            BladeEdge()
+                .frame(width: WhetstoneTheme.bladeEdgeWidth + WhetstoneTheme.sparkDotSize)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Thinking…")
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color.white.opacity(0.42))
+                HoningDots()
+            }
+
+            Spacer(minLength: 24)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Mentor is thinking, preparing a response")
     }
 }
 
@@ -720,31 +1181,15 @@ private struct MentorMessageView: View {
             BladeEdge()
                 .frame(width: WhetstoneTheme.bladeEdgeWidth + WhetstoneTheme.sparkDotSize)
 
-            HStack(alignment: .top, spacing: 8) {
-                mentorContentColumn
-                    .contextMenu {
-                        if let payload = resolvedCopyPayload {
-                            Button(payload.menuTitle) {
-                                Self.copyToPasteboard(payload.string)
-                                copyFeedbackTick &+= 1
-                            }
+            mentorContentColumn
+                .contextMenu {
+                    if let payload = resolvedCopyPayload {
+                        Button(payload.menuTitle) {
+                            Self.copyToPasteboard(payload.string)
+                            copyFeedbackTick &+= 1
                         }
                     }
-
-                if resolvedCopyPayload != nil {
-                    Button {
-                        guard let payload = resolvedCopyPayload else { return }
-                        Self.copyToPasteboard(payload.string)
-                        copyFeedbackTick &+= 1
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.system(size: 14, weight: .regular))
-                    }
-                    .buttonStyle(MentorCopyAffordanceStyle())
-                    .accessibilityLabel(Self.copyAccessibilityLabel(for: message))
-                    .accessibilityHint(message.text.isEmpty ? "Copies the diagram caption to the clipboard." : "Copies the mentor reply to the clipboard.")
                 }
-            }
 
             Spacer(minLength: 24)
         }
@@ -764,8 +1209,19 @@ private struct MentorMessageView: View {
                 HonedRow(meta: meta)
             }
             if let payload = resolvedCopyPayload {
-                HStack {
+                HStack(spacing: 12) {
                     Spacer(minLength: 0)
+                    Button {
+                        Self.copyToPasteboard(payload.string)
+                        copyFeedbackTick &+= 1
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 14, weight: .regular))
+                    }
+                    .buttonStyle(MentorCopyAffordanceStyle())
+                    .accessibilityLabel(Self.copyAccessibilityLabel(for: message))
+                    .accessibilityHint(message.text.isEmpty ? "Copies the diagram caption to the clipboard." : "Copies the mentor reply to the clipboard.")
+
                     ShareLink(item: payload.string) {
                         Image(systemName: "square.and.arrow.up")
                             .font(.system(size: 14, weight: .regular))
@@ -1075,14 +1531,17 @@ extension View {
 private struct ChatPreviewContainer: View {
     @StateObject private var auth: AuthManager
     @StateObject private var mode: AgentModeStore
+    @StateObject private var vault: CredentialVaultStore
     @StateObject private var store: ConversationStore
 
     init() {
         let a = AuthManager()
         let m = AgentModeStore()
+        let v = CredentialVaultStore()
         _auth = StateObject(wrappedValue: a)
         _mode = StateObject(wrappedValue: m)
-        _store = StateObject(wrappedValue: ConversationStore(agentModeStore: m, auth: a))
+        _vault = StateObject(wrappedValue: v)
+        _store = StateObject(wrappedValue: ConversationStore(agentModeStore: m, auth: a, credentialVaultStore: v))
     }
 
     var body: some View {
@@ -1090,6 +1549,7 @@ private struct ChatPreviewContainer: View {
             .environmentObject(store)
             .environmentObject(auth)
             .environmentObject(mode)
+            .environmentObject(vault)
     }
 }
 

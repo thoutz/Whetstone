@@ -29,6 +29,7 @@
 		AA00000000000000000000A4 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000000000000000000098 /* ChatViewModel.swift */; };
 		AA00000000000000000000C1 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000C0 /* Supabase */; };
 		AA00000000000000000000D6 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D5 /* ProfileView.swift */; };
+		AA00000000000000000000E9 /* CredentialVault.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E8 /* CredentialVault.swift */; };
 		AA00000000000000000000D8 /* ConversationPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D7 /* ConversationPersistence.swift */; };
 		AA00000000000000000000DA /* ConversationsAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D9 /* ConversationsAPIClient.swift */; };
 		AA00000000000000000000DC /* MentorMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000DB /* MentorMarkdownView.swift */; };
@@ -38,6 +39,7 @@
 		BB1000020000000000000003 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000010000000000000003 /* AdvancedTools.swift */; };
 		BB1000020000000000000004 /* advanced_system_prompt.txt in Resources */ = {isa = PBXBuildFile; fileRef = BB1000010000000000000004 /* advanced_system_prompt.txt */; };
 		BB1000020000000000000005 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = BB2000020000000000000001 /* Citadel */; };
+		BB3000020000000000000002 /* NetDiagnosis in Frameworks */ = {isa = PBXBuildFile; productRef = BB3000020000000000000001 /* NetDiagnosis */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -65,6 +67,7 @@
 		AA000000000000000000009C /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		AA000000000000000000009D /* WhetstoneConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhetstoneConstants.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D5 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		AA00000000000000000000E8 /* CredentialVault.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialVault.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D7 /* ConversationPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationPersistence.swift; sourceTree = "<group>"; };
 		AA00000000000000000000D9 /* ConversationsAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsAPIClient.swift; sourceTree = "<group>"; };
 		AA00000000000000000000DB /* MentorMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentorMarkdownView.swift; sourceTree = "<group>"; };
@@ -82,6 +85,7 @@
 			files = (
 				AA00000000000000000000C1 /* Supabase in Frameworks */,
 				BB1000020000000000000005 /* Citadel in Frameworks */,
+				BB3000020000000000000002 /* NetDiagnosis in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -185,6 +189,7 @@
 				AA000000000000000000009B /* AuthManager.swift */,
 				AA000000000000000000009C /* LoginView.swift */,
 				AA00000000000000000000D5 /* ProfileView.swift */,
+				AA00000000000000000000E8 /* CredentialVault.swift */,
 				BB1000010000000000000002 /* SupabaseJWTHelper.swift */,
 			);
 			path = Auth;
@@ -209,6 +214,7 @@
 			packageProductDependencies = (
 				AA00000000000000000000C0 /* Supabase */,
 				BB2000020000000000000001 /* Citadel */,
+				BB3000020000000000000001 /* NetDiagnosis */,
 			);
 			productName = Whetstone;
 			productReference = AA0000000000000000000005 /* Whetstone.app */;
@@ -241,6 +247,7 @@
 			packageReferences = (
 				6A279ABD2FB2598D000F0F60 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				BB2000010000000000000001 /* XCRemoteSwiftPackageReference "Citadel" */,
+				BB3000010000000000000001 /* XCRemoteSwiftPackageReference "NetDiagnosis" */,
 			);
 			productRefGroup = AA0000000000000000000004 /* Products */;
 			projectDirPath = "";
@@ -288,6 +295,7 @@
 				AA00000000000000000000A2 /* AuthManager.swift in Sources */,
 				AA00000000000000000000A3 /* LoginView.swift in Sources */,
 				AA00000000000000000000D6 /* ProfileView.swift in Sources */,
+				AA00000000000000000000E9 /* CredentialVault.swift in Sources */,
 				AA00000000000000000000D8 /* ConversationPersistence.swift in Sources */,
 				AA00000000000000000000DA /* ConversationsAPIClient.swift in Sources */,
 				AA00000000000000000000DC /* MentorMarkdownView.swift in Sources */,
@@ -526,6 +534,14 @@
 				minimumVersion = 0.9.0;
 			};
 		};
+		BB3000010000000000000001 /* XCRemoteSwiftPackageReference "NetDiagnosis" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/453jerry/NetDiagnosis.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -538,6 +554,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BB2000010000000000000001 /* XCRemoteSwiftPackageReference "Citadel" */;
 			productName = Citadel;
+		};
+		BB3000020000000000000001 /* NetDiagnosis */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BB3000010000000000000001 /* XCRemoteSwiftPackageReference "NetDiagnosis" */;
+			productName = NetDiagnosis;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

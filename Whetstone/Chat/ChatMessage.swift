@@ -32,4 +32,7 @@ struct ChatMessage: Identifiable {
     static func mentor(_ text: String, svg: SVGPayload? = nil, meta: ResponseMeta? = nil) -> ChatMessage {
         ChatMessage(role: .mentor, text: text, attachedImages: [], svgPayload: svg, meta: meta)
     }
+
+    /// Student turns can be edited from the transcript (truncates history from that turn and resends).
+    var isUserTurn: Bool { role == .user }
 }

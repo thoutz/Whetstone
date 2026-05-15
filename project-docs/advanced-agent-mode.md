@@ -5,7 +5,7 @@ Implementation journal for the **Standard vs Advanced** agent modes (May 2026).
 ## Goals
 
 - **Standard** — unchanged product behavior: mentor system prompt from `system_prompt.txt`, tools `render_construction` + `render_chips` only.
-- **Advanced** — Supabase-gated power users: alternate system prompt (`advanced_system_prompt.txt`), mentor tools plus eight on-device network/SSH tools, no generative discipline from the mentor prompt while keeping safety wording.
+- **Advanced** — Supabase-gated power users: alternate system prompt (`advanced_system_prompt.txt`), mentor tools plus fifteen on-device network/SSH/diagnostic tools, no generative discipline from the mentor prompt while keeping safety wording.
 - **Enforcement** — Server-side entitlement in JWT (`app_metadata.advanced_mode`). UI toggle without entitlement does nothing effective; runtime uses Standard tools/prompt whenever `AuthManager.isAdvancedUser` is false.
 
 ## Supabase setup (admin)
@@ -22,7 +22,8 @@ The app decodes the **access token** payload (middle JWT segment) and reads `app
 ## Xcode / SwiftPM
 
 - Added remote package **Citadel** (`https://github.com/orlandos-nl/Citadel.git`, resolved to **0.12.1** at time of implementation) for SSH.
-- Product linked to target: **Citadel**.
+- Added remote package **NetDiagnosis** (`https://github.com/453jerry/NetDiagnosis.git`) for ICMP traceroute/ping (transitively resolves **swift-collections** and **RxSwift** in the pinned graph; app links only **NetDiagnosis**).
+- Products linked to target: **Citadel**, **NetDiagnosis**.
 - Resolved graph also pulls **swift-nio**, **swift-nio-ssh**, **BigInt**, **swift-log**, etc. (see `Package.resolved` after resolve).
 
 Files added to the target:
@@ -52,7 +53,7 @@ Files added to the target:
 ## Tool dispatch
 
 - `dispatchToolCall(_:advancedToolsEnabled:)` in `MentorTools.swift` is **async**; mentor handlers stay synchronous; advanced path `await`s `AdvancedTools.dispatch`.
-- `AdvancedTools`: `dns_lookup`, `ping_host` (TCP, not ICMP), `ip_geolocation` (ipinfo.io), `port_scan`, `http_request`, `whois_lookup` (rdap.org), `network_interfaces`, `ssh_execute` (Citadel, password auth, `SSHHostKeyValidator.acceptAnything()` — documented risk in tool description).
+- `AdvancedTools`: legacy stack (`dns_lookup`, `ping_host` TCP-only, `ip_geolocation`, `port_scan`, `http_request`, `whois_lookup` / RDAP, `network_interfaces`, `ssh_execute` with vault IDs) plus `dns_query` (Cloudflare DoH JSON), `traceroute` (NetDiagnosis ICMP), `tls_certificate` (handshake + DER SHA-256), `tcp_banner_grab`, `network_speed_test` (Cloudflare `__down`), `subnet_info` (IPv4 CIDR), `certificate_transparency` (crt.sh). SSH still uses Citadel + `SSHHostKeyValidator.acceptAnything()` (documented MITM lab risk).
 
 ## UI
 

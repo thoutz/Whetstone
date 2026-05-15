@@ -36,6 +36,7 @@ final class ConversationStore: ObservableObject {
     private let client: AIClient
     private let agentModeStore: AgentModeStore
     private let auth: AuthManager
+    private let credentialVaultStore: CredentialVaultStore
 
     private var shouldSyncRemote: Bool {
         remotePersistenceEnabled
@@ -53,9 +54,10 @@ final class ConversationStore: ObservableObject {
 
     // MARK: - Init
 
-    init(agentModeStore: AgentModeStore, auth: AuthManager) {
+    init(agentModeStore: AgentModeStore, auth: AuthManager, credentialVaultStore: CredentialVaultStore) {
         self.agentModeStore = agentModeStore
         self.auth = auth
+        self.credentialVaultStore = credentialVaultStore
         do {
             client = try makeAIClient()
         } catch {
@@ -348,6 +350,42 @@ final class ConversationStore: ObservableObject {
         Task { await runLoop(conversationId: conversations[idx].id) }
     }
 
+    /// Replace a user message and everything after it by truncating local + API history and resending as a new user turn.
+    func editMessage(id: UUID, newText: String, newImages: [Data] = []) {
+        guard !isThinking else { return }
+        pendingChipOffer = nil
+
+        guard let idx = activeIndex,
+              let msgIdx = conversations[idx].messages.firstIndex(where: { $0.id == id }),
+              conversations[idx].messages[msgIdx].role == .user else { return }
+
+        let trimmed = newText.trimmingCharacters(in: .whitespaces)
+        let fallbackImages = conversations[idx].messages[msgIdx].attachedImages
+        let images = newImages.isEmpty ? fallbackImages : newImages
+        guard !trimmed.isEmpty || !images.isEmpty else { return }
+        errorBanner = nil
+
+        let userMsgsBefore = conversations[idx].messages[..<msgIdx]
+            .filter { $0.role == .user }.count
+
+        var cutIndex: Int?
+        var apiUserCount = 0
+        for (i, msg) in conversations[idx].apiHistory.enumerated() where msg.role == .user {
+            if apiUserCount == userMsgsBefore {
+                cutIndex = i
+                break
+            }
+            apiUserCount += 1
+        }
+        guard let cut = cutIndex else { return }
+
+        conversations[idx].messages = Array(conversations[idx].messages[..<msgIdx])
+        conversations[idx].apiHistory = Array(conversations[idx].apiHistory[..<cut])
+        conversations[idx].updatedAt = Date()
+
+        send(trimmed, imageJPEGData: images)
+    }
+
     func dismissChipOfferForOther() {
         pendingChipOffer = nil
     }
@@ -521,7 +559,11 @@ final class ConversationStore: ObservableObject {
 
             var chipsEmitted = false
             for call in completion.toolCalls {
-                let result = await dispatchToolCall(call, advancedToolsEnabled: advancedToolsEnabledSnapshot)
+                let result = await dispatchToolCall(
+                    call,
+                    advancedToolsEnabled: advancedToolsEnabledSnapshot,
+                    credentialVault: advancedToolsEnabledSnapshot ? credentialVaultStore : nil
+                )
                 let toolMsg = Message.toolResult(callId: result.callId, content: result.output)
                 conversations[idx].apiHistory.append(toolMsg)
                 systemHistory.append(toolMsg)

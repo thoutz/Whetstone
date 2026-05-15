@@ -107,7 +107,7 @@ struct SVGPayload {
     let caption: String?
 }
 
-func dispatchToolCall(_ call: ToolCall, advancedToolsEnabled: Bool) async -> ToolResult {
+func dispatchToolCall(_ call: ToolCall, advancedToolsEnabled: Bool, credentialVault: CredentialVaultProviding? = nil) async -> ToolResult {
     switch call.name {
     case "render_construction":
         return handleRenderConstruction(call)
@@ -115,7 +115,7 @@ func dispatchToolCall(_ call: ToolCall, advancedToolsEnabled: Bool) async -> Too
         return handleRenderChips(call)
     default:
         if advancedToolsEnabled {
-            return await AdvancedTools.dispatch(call)
+            return await AdvancedTools.dispatch(call, credentialVault: credentialVault)
         }
         return ToolResult(
             callId: call.id,
