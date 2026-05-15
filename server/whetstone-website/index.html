@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Whetstone — Mentor, not autopilot</title>
+  <meta name="description" content="Whetstone — the iOS mentor that sharpens your craft. Same look and feel as the app: steel-blue edge, ember spark, real conversation.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /*
+     * Colors match WhetstoneTheme.swift — obsidian, blade, ember, surfaces.
+     * BladeEdge mentor rail: LinearGradient ember → blade → blade@0.15 + ember spark Circle.
+     */
+    :root {
+      --obsidian: #07090d;
+      --surface: #0d1017;
+      --surface-high: #141920;
+      --blade: #4ea3ff;
+      --blade-soft: rgba(78, 163, 255, 0.15);
+      --ember: #ff7a1a;
+      --ember-glow: rgba(255, 122, 26, 0.7);
+      --text: rgba(255, 255, 255, 0.92);
+      --text-dim: rgba(255, 255, 255, 0.55);
+      --border: rgba(78, 163, 255, 0.12);
+      --blade-edge-width: 2px;
+      --spark-size: 7px;
+      --rail-width: calc(var(--blade-edge-width) + var(--spark-size));
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+      --sans: "Source Sans 3", system-ui, sans-serif;
+      --chamfer: 14px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--sans);
+      background: var(--obsidian);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    .noise {
+      pointer-events: none;
+      position: fixed;
+      inset: 0;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      z-index: 0;
+    }
+
+    /* ---- Blade rail (parity with BladeEdge + spark in ChatView.swift) ---- */
+    .blade-rail {
+      position: relative;
+      width: var(--rail-width);
+      flex-shrink: 0;
+      align-self: stretch;
+      min-height: 2.75rem;
+    }
+    .blade-rail .bar {
+      position: absolute;
+      left: calc((var(--spark-size) - var(--blade-edge-width)) / 2 + 1px);
+      top: calc(var(--spark-size) + 3px);
+      bottom: 0;
+      width: var(--blade-edge-width);
+      border-radius: 1px;
+      background: linear-gradient(
+        180deg,
+        var(--ember) 0%,
+        var(--blade) 30%,
+        var(--blade-soft) 100%
+      );
+    }
+    .blade-rail .spark {
+      position: absolute;
+      left: 2px;
+      top: 0;
+      width: var(--spark-size);
+      height: var(--spark-size);
+      border-radius: 50%;
+      background: var(--ember);
+      box-shadow: 0 0 8px var(--ember-glow);
+    }
+
+    .mentor-strip {
+      display: flex;
+      align-items: stretch;
+      gap: 14px;
+      max-width: 640px;
+    }
+    .mentor-strip .body {
+      flex: 1;
+      padding: 0.15rem 0 0.25rem;
+      min-width: 0;
+    }
+
+    /* User bubble — ChamferedTopRight + surfaceHigh (UserMessageView) */
+    .user-row {
+      display: flex;
+      justify-content: flex-end;
+      margin: 1.25rem 0 1rem;
+      padding-left: min(18vw, 5rem);
+    }
+    .user-bubble {
+      background: var(--surface-high);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 500;
+      line-height: 1.45;
+      padding: 0.7rem 1rem;
+      max-width: 26rem;
+      clip-path: polygon(0 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, 0 100%);
+      border: 1px solid rgba(78, 163, 255, 0.22);
+      border-radius: 0 0 12px 12px;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 1.25rem 4rem;
+    }
+
+    /* Header — ChatView HUD “WHETSTONE” */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      padding: 1.1rem 0 1.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .mark {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mark-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--surface-high);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      position: relative;
+    }
+    .mark-icon::before {
+      content: "";
+      position: absolute;
+      inset: 10px;
+      background: linear-gradient(135deg, var(--blade) 0%, rgba(78, 163, 255, 0.35) 100%);
+      clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+      opacity: 0.9;
+    }
+    .wordmark {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.28em;
+      color: rgba(78, 163, 255, 0.9);
+    }
+    .pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(78, 163, 255, 0.28);
+      background: var(--surface);
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    .hero {
+      padding: 2.25rem 0 1.5rem;
+    }
+    .hero-kicker {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255, 122, 26, 0.75);
+      letter-spacing: 0.06em;
+      margin-bottom: 0.85rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.85rem, 5vw, 2.65rem);
+      font-weight: 700;
+      line-height: 1.18;
+      margin: 0 0 0.85rem;
+      letter-spacing: -0.02em;
+    }
+    .hero-lead {
+      font-size: 1.125rem;
+      color: var(--text-dim);
+      max-width: 36rem;
+      margin: 0 0 2rem;
+    }
+
+    /* Sample conversation block */
+    .thread {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.35rem 1.5rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    }
+    .thread-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: rgba(255, 122, 26, 0.45);
+      letter-spacing: 0.06em;
+      margin-bottom: 0.75rem;
+    }
+    .mentor-preview p {
+      margin: 0 0 0.65rem;
+      font-size: 1.05rem;
+      line-height: 1.55;
+      color: rgba(255, 255, 255, 0.88);
+    }
+    .mentor-preview p:last-child { margin-bottom: 0; }
+
+    .section-label {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      color: var(--blade);
+      opacity: 0.85;
+      margin: 2.5rem 0 1rem;
+    }
+    .features {
+      display: grid;
+      gap: 1rem;
+    }
+    .feature-card {
+      background: var(--surface-high);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: stretch;
+      min-height: 5rem;
+    }
+    .feature-card .blade-slot {
+      width: 6px;
+      flex-shrink: 0;
+      background: linear-gradient(180deg, var(--ember), var(--blade) 55%, transparent);
+      opacity: 0.85;
+    }
+    .feature-card .inner {
+      padding: 1.1rem 1.25rem;
+    }
+    .feature-card h3 {
+      margin: 0 0 0.4rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+    .feature-card p {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .chips-demo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1.25rem;
+    }
+    .chip {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 0.45rem 0.85rem;
+      border-radius: 999px;
+      background: var(--surface-high);
+      border: 1px solid rgba(78, 163, 255, 0.42);
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .chip.dim {
+      border-color: rgba(78, 163, 255, 0.28);
+      color: rgba(255, 255, 255, 0.55);
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .nav-auth {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .nav-link-plain {
+      font-size: 0.95rem;
+      color: rgba(78, 163, 255, 0.9);
+      text-decoration: none;
+      font-weight: 500;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-family: inherit;
+      padding: 0;
+    }
+    .nav-link-plain:hover { color: var(--blade); text-decoration: underline; }
+    .gear-wrap-l { position: relative; display: inline-block; }
+    .gear-btn-l {
+      cursor: pointer; width: 40px; height: 38px;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface-high); color: var(--text-dim); font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .gear-menu-l {
+      position: absolute; right: 0; top: 110%; z-index: 40;
+      min-width: 200px;
+      background: var(--surface-high); border: 1px solid var(--border); border-radius: 10px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.35);
+      display: none;
+    }
+    .gear-menu-l.open { display: block; }
+    .gear-menu-l button {
+      width: 100%; text-align: left;
+      padding: 0.55rem 0.85rem;
+      border: none; border-bottom: 1px solid var(--border);
+      background: transparent; color: var(--text); cursor: pointer; font-family: inherit; font-size: 0.9rem;
+    }
+    .gear-menu-l button:last-child { border-bottom: none; }
+    .login-mask {
+      position: fixed; inset: 0; background: rgba(0,0,0,.58); z-index: 90;
+      display: none; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .login-mask.open { display: flex; }
+    .login-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1.5rem 1.35rem; max-width: 360px; width: 100%;
+    }
+    .login-card label { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); display: block; margin-bottom: 0.35rem; }
+    .login-card input[type="email"],
+    .login-card input[type="password"] {
+      width: 100%; padding: 0.55rem 0.65rem; border-radius: 8px; border: 1px solid var(--border);
+      background: #0e1014; color: var(--text); margin-bottom: 0.85rem;
+    }
+    .login-card .hint { font-size: 0.82rem; color: var(--text-dim); margin-top: 0.75rem; line-height: 1.45; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <div class="wrap">
+    <header>
+      <div class="mark">
+        <div class="mark-icon" aria-hidden="true"></div>
+        <span class="wordmark">WHETSTONE</span>
+      </div>
+      <div class="nav-auth">
+        <span class="pill">iOS &amp; web · mentor session</span>
+        <button type="button" class="nav-link-plain hidden" id="lnkMentor">Open mentor</button>
+        <button type="button" class="nav-link-plain" id="btnLoginLanding">Log in</button>
+        <div class="gear-wrap-l hidden" id="landingGearWrap">
+          <button type="button" class="gear-btn-l" id="gearBtnLanding" aria-label="Account menu">⚙︎</button>
+          <div class="gear-menu-l" id="gearMenuLanding">
+            <button type="button" id="gOpenMentor">Open mentor</button>
+            <button type="button" id="gSettingsDummyLanding">Preferences (soon)</button>
+            <button type="button" class="hidden" id="gAdminLanding">Admin console</button>
+            <button type="button" id="gLogoutLanding">Log out</button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="hero">
+      <p class="hero-kicker">Named after sharpening stones · keeps the giggles intact</p>
+      <h1>Intelligence that makes you smarter</h1>
+      <p class="hero-lead">
+        Drawing, scribbles, study panic, rattly chord changes, afternoons spent convincing a gasket to cooperate — anything you can poke at aloud,
+        bring it here. Snap a pic when prose would waste daylight. Bubble buttons sometimes appear when choosing A-or-B genuinely helps; brush them off and type anytime.
+      </p>
+
+      <div class="thread" aria-labelledby="sample-thread-heading">
+        <div class="thread-label" id="sample-thread-heading">/// PREVIEW THREAD</div>
+
+        <div class="user-row">
+          <div class="user-bubble">Rough contour on hands — thumbs keep bloating.</div>
+        </div>
+
+        <div class="mentor-strip">
+          <div class="blade-rail" aria-hidden="true">
+            <span class="spark"></span>
+            <span class="bar"></span>
+          </div>
+          <div class="body mentor-preview">
+            <p>Hands punish generalization — the hinge at the thumb’s base eats most mistakes before the fingers speak.</p>
+            <p>One pass: silhouette only, palm as a single mass, no knuckles. Then tell me where the mass lies.</p>
+          </div>
+        </div>
+
+        <div class="chips-demo" aria-label="Example response chips">
+          <span class="chip">Show the sketch</span>
+          <span class="chip">Explain the hinge</span>
+          <span class="chip">Another exercise</span>
+          <span class="chip dim">Other</span>
+        </div>
+      </div>
+
+      <p class="section-label">WHAT’S GOING ON</p>
+      <div class="features">
+        <article class="feature-card">
+          <div class="blade-slot" aria-hidden="true"></div>
+          <div class="inner">
+            <h3>Pic first, sermon later</h3>
+            <p>Quiet caption plus photo usually earns a friendly “okay, what’m I looking at?” beat before anybody gets lofty — avoids the whole pretending-it-read-your-brain gag.</p>
+          </div>
+        </article>
+        <article class="feature-card">
+          <div class="blade-slot" aria-hidden="true"></div>
+          <div class="inner">
+            <h3>Tap-labels if you want ’em</h3>
+            <p>Round answer chips sometimes float up when the fork is tiny; wave them off and keyboard-rant if that feels cozier.</p>
+          </div>
+        </article>
+        <article class="feature-card">
+          <div class="blade-slot" aria-hidden="true"></div>
+          <div class="inner">
+            <h3>Hobby-hop ok</h3>
+            <p>Not welded to graphite — tinkering counts whether it’s wiring, paragraphs, fretboards, or cursing at a clogged drain while you swear you almost got it.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <footer>
+      <span>© Project Whetstone</span>
+    </footer>
+  </div>
+
+  <div class="login-mask" id="loginMask" aria-hidden="true">
+    <div class="login-card" role="dialog" aria-labelledby="loginTitle">
+      <h2 style="margin:0 0 0.85rem;font-size:1.15rem;color:var(--text)" id="loginTitle">Sign in</h2>
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+      <button type="button" class="nav-link-plain" style="display:inline-flex;padding:.6rem .9rem;background:linear-gradient(180deg,#223246,#141920);border:1px solid rgba(78,163,255,.4);border-radius:10px;font-weight:600;width:100%;justify-content:center;margin-top:0.1rem" id="btnSignInLanding">Sign in</button>
+      <p class="hint" id="loginHint"></p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+    async function loadCfg() {
+      const r = await fetch('/app/config.json', { cache: 'no-store' });
+      if (!r.ok) throw new Error('config');
+      return r.json();
+    }
+    const els = {
+      btnLogin: document.getElementById('btnLoginLanding'),
+      gearWrap: document.getElementById('landingGearWrap'),
+      mentor: document.getElementById('lnkMentor'),
+      mask: document.getElementById('loginMask'),
+      email: document.getElementById('loginEmail'),
+      password: document.getElementById('loginPassword'),
+      btnSignIn: document.getElementById('btnSignInLanding'),
+      hint: document.getElementById('loginHint'),
+      gearBtn: document.getElementById('gearBtnLanding'),
+      gearMenu: document.getElementById('gearMenuLanding'),
+      gMentor: document.getElementById('gOpenMentor'),
+      gLogout: document.getElementById('gLogoutLanding'),
+      gDummy: document.getElementById('gSettingsDummyLanding'),
+      gAdmin: document.getElementById('gAdminLanding'),
+    };
+    try {
+      const cfg = await loadCfg();
+
+      els.mask.addEventListener('click', (e) => {
+        if (e.target === els.mask) { els.mask.classList.remove('open'); }
+      });
+
+      if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+        els.gearWrap.classList.add('hidden');
+        els.mentor.classList.add('hidden');
+        els.btnLogin.classList.remove('hidden');
+        els.email.disabled = true;
+        els.password.disabled = true;
+        els.btnSignIn.disabled = true;
+        const setupMsg =
+          'Sign-in is not configured yet. The server needs SUPABASE_URL and SUPABASE_ANON_KEY in /etc/whetstone-proxy.env, then rerun the deploy script so /app/config.json is regenerated.';
+        els.btnLogin.addEventListener('click', () => {
+          els.mask.classList.add('open');
+          els.hint.textContent = setupMsg;
+        });
+        els.btnSignIn.addEventListener('click', () => {
+          els.hint.textContent = setupMsg;
+        });
+      } else {
+      const sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      });
+
+      async function bearer() {
+        const { data } = await sb.auth.getSession();
+        if (!data.session) return null;
+        return 'Bearer ' + data.session.access_token;
+      }
+
+      async function meEmail() {
+        const h = await bearer();
+        if (!h) return '';
+        try {
+          const r = await fetch(location.origin + '/whetstone/api/me', { headers: { Authorization: h } });
+          if (!r.ok) return '';
+          const j = await r.json();
+          return (j.email || '').toLowerCase();
+        } catch {
+          return '';
+        }
+      }
+
+      async function refreshUI() {
+        const { data } = await sb.auth.getSession();
+        const sess = data.session;
+        if (sess) {
+          els.btnLogin.classList.add('hidden');
+          els.gearWrap.classList.remove('hidden');
+          els.mentor.classList.remove('hidden');
+          const mail = await meEmail();
+          const owner =
+            cfg.adminOwnerEmailLower &&
+            mail &&
+            mail === String(cfg.adminOwnerEmailLower).toLowerCase();
+          els.gAdmin.classList.toggle('hidden', !owner);
+        } else {
+          els.btnLogin.classList.remove('hidden');
+          els.gearWrap.classList.add('hidden');
+          els.mentor.classList.add('hidden');
+          els.gearMenu.classList.remove('open');
+        }
+      }
+
+      sb.auth.onAuthStateChange(() => refreshUI());
+
+      els.btnLogin.addEventListener('click', () => {
+        els.mask.classList.add('open');
+        els.hint.textContent = '';
+        els.email.focus();
+      });
+
+      async function submitSignIn() {
+        const email = els.email.value.trim();
+        const password = els.password.value;
+        if (!email || !password) {
+          els.hint.textContent = 'Enter email and password.';
+          return;
+        }
+        els.hint.textContent = 'Signing in…';
+        els.btnSignIn.disabled = true;
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        els.btnSignIn.disabled = false;
+        if (error) {
+          els.hint.textContent = error.message || 'Could not sign in.';
+          return;
+        }
+        els.password.value = '';
+        els.mask.classList.remove('open');
+        els.hint.textContent = '';
+        await refreshUI();
+      }
+
+      els.btnSignIn.addEventListener('click', () => submitSignIn());
+      els.password.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') submitSignIn();
+      });
+
+      els.mentor.addEventListener('click', () => { location.href = '/app/'; });
+      els.gMentor.addEventListener('click', () => { location.href = '/app/'; });
+      els.gDummy.addEventListener('click', () => alert('Preferences will live here for everyone logging in.'));
+      els.gLogout.addEventListener('click', async () => {
+        await sb.auth.signOut();
+        els.mask.classList.remove('open');
+        els.password.value = '';
+      });
+
+      els.gearBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        els.gearMenu.classList.toggle('open');
+      });
+      document.addEventListener('click', () => els.gearMenu.classList.remove('open'));
+
+      els.gAdmin.addEventListener('click', async () => {
+        const { data } = await sb.auth.getSession();
+        if (!data.session) return;
+        const r = await fetch('/admin/api/auth/supabase-exchange', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + data.session.access_token },
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          alert(j.error || 'Admin exchange failed');
+          return;
+        }
+        sessionStorage.setItem('whetstone_admin_jwt', j.token);
+        location.href = '/admin/';
+      });
+
+      await refreshUI();
+      }
+    } catch {
+      els.mask.addEventListener('click', (e) => {
+        if (e.target === els.mask) { els.mask.classList.remove('open'); }
+      });
+      els.gearWrap.classList.add('hidden');
+      els.mentor.classList.add('hidden');
+      els.btnLogin.classList.remove('hidden');
+      els.email.disabled = true;
+      els.password.disabled = true;
+      els.btnSignIn.disabled = true;
+      els.btnLogin.addEventListener('click', () => {
+        els.hint.textContent = '/app/config.json is missing — run deploy or add Supabase keys on the server.';
+        els.mask.classList.add('open');
+      });
+      els.btnSignIn.addEventListener('click', () => {
+        els.hint.textContent =
+          '/app/config.json failed to load — run deploy so this file exists, then add SUPABASE_* to server env.';
+      });
+    }
+  </script>
+</body>
+</html>

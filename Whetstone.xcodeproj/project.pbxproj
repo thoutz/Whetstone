@@ -33,6 +33,11 @@
 		AA00000000000000000000DA /* ConversationsAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000D9 /* ConversationsAPIClient.swift */; };
 		AA00000000000000000000DC /* MentorMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000DB /* MentorMarkdownView.swift */; };
 		AA00000000000000000000E1 /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000000000000E0 /* Project.swift */; };
+		BB1000020000000000000001 /* AgentMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000010000000000000001 /* AgentMode.swift */; };
+		BB1000020000000000000002 /* SupabaseJWTHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000010000000000000002 /* SupabaseJWTHelper.swift */; };
+		BB1000020000000000000003 /* AdvancedTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1000010000000000000003 /* AdvancedTools.swift */; };
+		BB1000020000000000000004 /* advanced_system_prompt.txt in Resources */ = {isa = PBXBuildFile; fileRef = BB1000010000000000000004 /* advanced_system_prompt.txt */; };
+		BB1000020000000000000005 /* Citadel in Frameworks */ = {isa = PBXBuildFile; productRef = BB2000020000000000000001 /* Citadel */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,6 +69,10 @@
 		AA00000000000000000000D9 /* ConversationsAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationsAPIClient.swift; sourceTree = "<group>"; };
 		AA00000000000000000000DB /* MentorMarkdownView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MentorMarkdownView.swift; sourceTree = "<group>"; };
 		AA00000000000000000000E0 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
+		BB1000010000000000000001 /* AgentMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentMode.swift; sourceTree = "<group>"; };
+		BB1000010000000000000002 /* SupabaseJWTHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseJWTHelper.swift; sourceTree = "<group>"; };
+		BB1000010000000000000003 /* AdvancedTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedTools.swift; sourceTree = "<group>"; };
+		BB1000010000000000000004 /* advanced_system_prompt.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = advanced_system_prompt.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +81,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA00000000000000000000C1 /* Supabase in Frameworks */,
+				BB1000020000000000000005 /* Citadel in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -100,6 +110,7 @@
 				AA0000000000000000000011 /* AIClient.swift */,
 				AA0000000000000000000012 /* OpenAIChatClient.swift */,
 				AA0000000000000000000013 /* MentorTools.swift */,
+				BB1000010000000000000003 /* AdvancedTools.swift */,
 				AA00000000000000000000D9 /* ConversationsAPIClient.swift */,
 			);
 			path = AI;
@@ -122,6 +133,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000000000000000000017 /* system_prompt.txt */,
+				BB1000010000000000000004 /* advanced_system_prompt.txt */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -140,6 +152,7 @@
 				6A279ABE2FB259B9000F0F60 /* Whetstone.entitlements */,
 				AA0000000000000000000095 /* Info.plist */,
 				AA0000000000000000000010 /* WhetstoneApp.swift */,
+				BB1000010000000000000001 /* AgentMode.swift */,
 				AA0000000000000000000070 /* WhetstoneTheme.swift */,
 				AA000000000000000000009D /* WhetstoneConstants.swift */,
 				AA0000000000000000000020 /* AI */,
@@ -172,6 +185,7 @@
 				AA000000000000000000009B /* AuthManager.swift */,
 				AA000000000000000000009C /* LoginView.swift */,
 				AA00000000000000000000D5 /* ProfileView.swift */,
+				BB1000010000000000000002 /* SupabaseJWTHelper.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -194,6 +208,7 @@
 			name = Whetstone;
 			packageProductDependencies = (
 				AA00000000000000000000C0 /* Supabase */,
+				BB2000020000000000000001 /* Citadel */,
 			);
 			productName = Whetstone;
 			productReference = AA0000000000000000000005 /* Whetstone.app */;
@@ -225,6 +240,7 @@
 			mainGroup = AA0000000000000000000003;
 			packageReferences = (
 				6A279ABD2FB2598D000F0F60 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				BB2000010000000000000001 /* XCRemoteSwiftPackageReference "Citadel" */,
 			);
 			productRefGroup = AA0000000000000000000004 /* Products */;
 			projectDirPath = "";
@@ -242,6 +258,7 @@
 			files = (
 				AA0000000000000000000039 /* Preview Assets.xcassets in Resources */,
 				AA0000000000000000000037 /* system_prompt.txt in Resources */,
+				BB1000020000000000000004 /* advanced_system_prompt.txt in Resources */,
 				AA0000000000000000000038 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -275,6 +292,9 @@
 				AA00000000000000000000DA /* ConversationsAPIClient.swift in Sources */,
 				AA00000000000000000000DC /* MentorMarkdownView.swift in Sources */,
 				AA00000000000000000000E1 /* Project.swift in Sources */,
+				BB1000020000000000000001 /* AgentMode.swift in Sources */,
+				BB1000020000000000000002 /* SupabaseJWTHelper.swift in Sources */,
+				BB1000020000000000000003 /* AdvancedTools.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -498,6 +518,14 @@
 				minimumVersion = 2.5.1;
 			};
 		};
+		BB2000010000000000000001 /* XCRemoteSwiftPackageReference "Citadel" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/orlandos-nl/Citadel.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -505,6 +533,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 6A279ABD2FB2598D000F0F60 /* XCRemoteSwiftPackageReference "supabase-swift" */;
 			productName = Supabase;
+		};
+		BB2000020000000000000001 /* Citadel */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BB2000010000000000000001 /* XCRemoteSwiftPackageReference "Citadel" */;
+			productName = Citadel;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

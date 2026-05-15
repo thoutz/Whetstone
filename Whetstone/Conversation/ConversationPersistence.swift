@@ -207,7 +207,7 @@ enum ConversationHydration {
         try ConversationPersistCodec.decoder.decode(ConversationDetailEnvelope.self, from: data).conversation
     }
 
-    static func decodeConversation(from record: WireConversationDetailRecord, systemPrompt: String) throws -> Conversation {
+    static func decodeConversation(from record: WireConversationDetailRecord, systemPromptVariants: [String]) throws -> Conversation {
         var conv = Conversation()
         conv.id = record.id
         conv.title = record.title
@@ -216,18 +216,19 @@ enum ConversationHydration {
         conv.updatedAt = record.updatedAt ?? Date()
         conv.apiHistory = record.apiHistory.compactMap(Self.decodeApiMessage)
         conv.messages = try record.messages.map(Self.decodeUIMessageRow)
-        conv.apiHistory = stripLegacySystemDuplicates(conv.apiHistory, systemPrompt: systemPrompt)
+        conv.apiHistory = stripLegacySystemDuplicates(conv.apiHistory, systemPromptVariants: systemPromptVariants)
         conv.isPinned = record.isPinned ?? false
         conv.projectId = record.projectId
         return conv
     }
 
-    static func stripLegacySystemDuplicates(_ history: [Message], systemPrompt: String) -> [Message] {
+    static func stripLegacySystemDuplicates(_ history: [Message], systemPromptVariants: [String]) -> [Message] {
+        let set = Set(systemPromptVariants)
         var out = history
         while out.count >= 2, out[0].role == .system, out[1].role == .system {
             let a = out[0].content ?? ""
             let b = out[1].content ?? ""
-            if a == systemPrompt || b == systemPrompt {
+            if set.contains(a) || set.contains(b) {
                 out.removeFirst()
             } else {
                 break

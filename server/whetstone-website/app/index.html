@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Whetstone — Web mentor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --obsidian: #07090d;
+      --surface: #0d1017;
+      --surface-high: #141920;
+      --blade: #4ea3ff;
+      --ember: #ff7a1a;
+      --text: rgba(255, 255, 255, 0.92);
+      --text-dim: rgba(255, 255, 255, 0.55);
+      --border: rgba(78, 163, 255, 0.12);
+      --sans: "Source Sans 3", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: var(--sans); background: var(--obsidian); color: var(--text); }
+    a { color: var(--blade); }
+    button, input { font-family: inherit; font-size: 0.92rem; }
+    .hidden { display: none !important; }
+    .layout { display: flex; height: 100vh; overflow: hidden; }
+    aside {
+      width: 260px; flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      background: var(--surface); display: flex; flex-direction: column;
+    }
+    aside header { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: rgba(78,163,255,0.85); }
+    aside .conv-list { flex: 1; overflow: auto; }
+    aside .conv-item {
+      padding: 0.6rem 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.04);
+      cursor: pointer; font-size: 0.88rem;
+    }
+    aside .conv-item:hover { background: var(--surface-high); }
+    aside .conv-item.active { border-left: 3px solid var(--ember); background: rgba(255,122,26,0.06); }
+    main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--obsidian); }
+    .toolbar {
+      flex-shrink: 0; padding: 0.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    }
+    #chipStrip {
+      flex-shrink: 0; padding: 0.4rem 1rem;
+      border-bottom: 1px solid rgba(78,163,255,0.25);
+      display: flex; flex-wrap: wrap; gap: 0.45rem; background: var(--surface);
+      min-height: 0;
+    }
+    #chipStrip button {
+      cursor: pointer; border-radius: 999px;
+      padding: 0.35rem 0.85rem;
+      border: 1px solid rgba(78,163,255,0.42);
+      background: var(--surface-high); color: var(--text);
+      font-family: var(--mono); font-size: 11px;
+    }
+    #chipStrip button.other { opacity: 0.65; }
+    .msgs { flex: 1; overflow: auto; padding: 1rem 1rem 8rem; }
+    .bubble { max-width: 38rem; margin: 0.75rem 0; padding: 0.65rem 0.95rem; border-radius: 12px; line-height: 1.52; white-space: pre-wrap; word-break: break-word; }
+    .bubble.user {
+      margin-left: auto;
+      background: var(--surface-high);
+      border: 1px solid rgba(78,163,255,0.22);
+      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+    }
+    .bubble.mentor { background: var(--surface); border: 1px solid var(--border); }
+    .blade-row { display: flex; gap: 12px; align-items: flex-start; margin: 1rem 0; }
+    .blade-rail { width: 9px; flex-shrink: 0; align-self: stretch; position: relative; min-height: 2.25rem; }
+    .blade-rail .edge { position: absolute; left: 4px; top: 14px; bottom: 0; width: 3px; border-radius: 1px; background: linear-gradient(180deg, var(--ember), var(--blade) 55%, transparent); }
+    .blade-rail .spark { position: absolute; left: 1px; top: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 8px rgba(255,122,26,.7); }
+    .svg-wrap {
+      margin-top: 0.5rem; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+      background: #0a0c10; max-width: 44rem;
+    }
+    .svg-wrap iframe { display: block; width: 100%; height: min(520px, 70vh); border: 0; }
+    .svg-cap { padding: 0.4rem 0.6rem; font-size: 0.78rem; color: var(--text-dim); font-family: var(--mono); }
+    .composer {
+      flex-shrink: 0; border-top: 1px solid var(--border); padding: 0.65rem;
+      background: var(--surface);
+    }
+    .thumb-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.35rem; }
+    .thumb { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+    .row { display: flex; gap: 0.5rem; align-items: flex-end; }
+    textarea.input {
+      flex: 1; min-height: 44px; max-height: 160px;
+      resize: vertical; padding: 0.55rem 0.65rem;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: #0e1014; color: var(--text);
+    }
+    .btn-primary {
+      padding: 0.55rem 1rem;
+      border-radius: 10px; border: 1px solid rgba(255,122,26,0.5);
+      background: rgba(255,122,26,0.12); color: var(--ember); font-weight: 600; cursor: pointer;
+    }
+    .btn-muted { padding: 0.45rem 0.65rem; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-high); color: var(--text-dim); cursor: pointer; }
+    .thinking { opacity: 0.75; font-size: 0.85rem; color: var(--text-dim); padding: 0 1rem 0.5rem; font-family: var(--mono); }
+    .gear-wrap { position: relative; }
+    .gear-btn {
+      cursor: pointer; width: 40px; height: 36px;
+      border-radius: 10px; border: 1px solid var(--border);
+      background: var(--surface-high); color: var(--text-dim); font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .gear-menu {
+      position: absolute; right: 0; top: 110%;
+      background: var(--surface-high); border: 1px solid var(--border);
+      border-radius: 10px; min-width: 200px; z-index: 50;
+      box-shadow: 0 12px 40px rgba(0,0,0,.35);
+      display: none;
+    }
+    .gear-menu.open { display: block; }
+    .gear-menu button {
+      width: 100%; text-align: left; padding: 0.55rem 0.85rem;
+      border: none; border-bottom: 1px solid var(--border);
+      background: transparent; color: var(--text); cursor: pointer;
+    }
+    .gear-menu button:last-child { border-bottom: none; }
+    .banner { background: rgba(196,92,92,0.18); border-bottom: 1px solid rgba(196,92,92,0.35); padding: 0.5rem 1rem; font-size: 0.85rem; color: #faa; }
+    .muted { font-size: 0.82rem; color: var(--text-dim); }
+  </style>
+</head>
+<body>
+  <div id="blocked" class="layout" style="justify-content:center;align-items:center;flex-direction:column;gap:1rem;color:var(--text-dim);">
+    <p>Loading…</p>
+  </div>
+  <div id="shell" class="layout hidden">
+    <aside>
+      <header>
+        <span>CONVERSATIONS</span>
+        <button type="button" class="btn-muted" id="btnNewConv" title="New conversation">+</button>
+      </header>
+      <div class="conv-list" id="convList"></div>
+    </aside>
+    <main>
+      <div class="toolbar">
+        <div class="muted" id="convTitleLbl">Select a conversation</div>
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <span class="muted" id="ctxPct"></span>
+          <div class="gear-wrap">
+            <button type="button" class="gear-btn" id="gearBtn" aria-label="Settings">⚙︎</button>
+            <div class="gear-menu" id="gearMenu">
+              <button type="button" id="gHome">Marketing page</button>
+              <button type="button" id="gDummy">Appearance (coming soon)</button>
+              <button type="button" class="hidden" id="gAdmin">Admin console</button>
+              <button type="button" id="gLogout">Log out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="banner" class="banner hidden"></div>
+      <div id="thinking" class="thinking hidden">Mentor is thinking…</div>
+      <div id="msgs" class="msgs"></div>
+      <div id="chipStrip" class="hidden"></div>
+      <div class="composer">
+        <div class="thumb-row" id="thumbRow"></div>
+        <div class="row">
+          <input type="file" id="filePick" accept="image/*" multiple class="hidden">
+          <button type="button" class="btn-muted" id="btnAttach">Photo</button>
+          <textarea class="input" id="ta" placeholder="Ask the mentor… (paste images with ⌘V)" rows="2"></textarea>
+          <button type="button" class="btn-primary" id="btnSend">Send</button>
+        </div>
+        <div class="muted" style="margin-top:.35rem">Web mentor • same tools as iOS • no finished output on your behalf</div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    /** @typedef {{supabaseUrl:string,supabaseAnonKey:string,aiAppToken:string,aiModel:string,adminOwnerEmailLower:string}} AppCfg */
+
+    /** OpenAI-compatible tool definitions (parity with MentorTools.swift). */
+    const TOOLS = [
+      {
+        type: "function",
+        function: {
+          name: "render_construction",
+          description:
+            "Render an instructional SVG diagram to aid teaching. Never representational creative substitution for student work.",
+          parameters: {
+            type: "object",
+            properties: {
+              svg: { type: "string", description: "Complete SVG markup string to display to the student." },
+              caption: { type: "string", description: "Short label beneath diagram (max 80 chars)." },
+            },
+            required: ["svg"],
+          },
+        },
+      },
+      {
+        type: "function",
+        function: {
+          name: "render_chips",
+          description:
+            "Show 2–4 tappable response chips when prose is paired same turn; never chips alone.",
+          parameters: {
+            type: "object",
+            properties: {
+              chips: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    label: { type: "string" },
+                    value: { type: "string" },
+                  },
+                  required: ["label", "value"],
+                },
+              },
+              allow_multi_select: { anyOf: [{ type: "boolean" }, { type: "string" }] },
+              include_other: { anyOf: [{ type: "boolean" }, { type: "string" }] },
+            },
+            required: ["chips"],
+          },
+        },
+      },
+    ];
+
+    function escapeHtml(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    /** Very small markdown-lite: fenced code, bold, bullets, newline → br */
+    function formatMentorText(t) {
+      const raw = escapeHtml(String(t ?? ""));
+      return raw.replace(/\n/g, "<br>");
+    }
+
+    function boolish(v, defaultVal = false) {
+      if (typeof v === "boolean") return v;
+      if (typeof v === "string") {
+        const s = v.trim().toLowerCase();
+        if (["true", "1", "yes", "y"].includes(s)) return true;
+        if (["false", "0", "no", "n"].includes(s)) return false;
+      }
+      if (typeof v === "number") return v !== 0;
+      return defaultVal;
+    }
+
+    function dispatchTool(call) {
+      const id = call.id;
+      let name = "";
+      let argsStr = "{}";
+      if (typeof call.function?.name === "string") name = call.function.name;
+      if (typeof call.function?.arguments === "string") argsStr = call.function.arguments || "{}";
+
+      /** @returns {{toolMsg:string, svg?:*, chips?:*, err?:string}} */
+      try {
+        const json = JSON.parse(argsStr || "{}");
+
+        if (name === "render_construction") {
+          const svg = json.svg || "";
+          const caption = json.caption ?? null;
+          if (!svg) return { toolMsg: "[render_construction] missing svg.", err: "invalid" };
+          return {
+            toolMsg: "Diagram rendered.",
+            svg: { svg, caption },
+          };
+        }
+
+        if (name === "render_chips") {
+          const chipsRaw = Array.isArray(json.chips) ? json.chips : [];
+          const chips = [];
+          for (const dict of chipsRaw.slice(0, 4)) {
+            const lbl = String(dict.label || "").trim();
+            const val = String(dict.value || "").trim();
+            if (lbl && val) chips.push({ label: lbl, value: val });
+          }
+          if (chips.length < 2) return { toolMsg: "render_chips requires ≥2 chips.", err: "invalid" };
+          const includeOther = boolish(json.include_other, true);
+          return {
+            toolMsg: "Chips displayed.",
+            chips: { chips, includeOther },
+          };
+        }
+
+        return { toolMsg: `Unknown tool: ${name}` };
+      } catch {
+        return { toolMsg: "Invalid JSON tool arguments.", err: "parse" };
+      }
+    }
+
+    function svgSrcDoc(inner) {
+      const safe =
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><style>html,body{margin:0;padding:8px;background:#0a0c10;color:#cfd5df;font:13px/system-ui;}svg{max-width:100%;height:auto;display:block}</style></head><body>" +
+        inner +
+        "</body></html>";
+      return safe;
+    }
+
+    /** @returns {Promise<string>} JPEG data URL ~maxEdge */
+    async function imageToJpegDataUrl(blob, maxEdge = 1024) {
+      const bmp = await createImageBitmap(blob);
+      const iw = bmp.width;
+      const ih = bmp.height;
+      const scale = Math.min(1, maxEdge / Math.max(iw, ih));
+      const w = Math.max(1, Math.round(iw * scale));
+      const h = Math.max(1, Math.round(ih * scale));
+      const cv = document.createElement("canvas");
+      cv.width = w;
+      cv.height = h;
+      const cx = cv.getContext("2d");
+      cx.drawImage(bmp, 0, 0, w, h);
+      bmp.close?.();
+      return cv.toDataURL("image/jpeg", 0.88);
+    }
+
+    function uuid() {
+      return crypto.randomUUID();
+    }
+
+    function stripDataUrl(url) {
+      const m = new RegExp("^data:image/jpeg;base64,(.+)$", "i").exec(String(url ?? "").trim());
+      return m ? m[1] : null;
+    }
+
+    function uiRowFromServer(row) {
+      const idStr = typeof row.id === "string" ? row.id : String(row.id);
+      const payload = row.payload || null;
+      const attached = [];
+      if (payload && Array.isArray(payload.attached_images_b64)) {
+        for (const b64 of payload.attached_images_b64) {
+          if (typeof b64 === "string" && b64.length) attached.push(`data:image/jpeg;base64,${b64}`);
+        }
+      }
+      const svg =
+        payload && payload.svg && typeof payload.svg.svg === "string" && payload.svg.svg
+          ? { svg: payload.svg.svg, caption: payload.svg.caption ?? null }
+          : null;
+      return {
+        id: idStr,
+        role: row.role === "tool" ? "mentor" : row.role,
+        text: row.content ?? "",
+        attachedImages: attached,
+        svgPayload: svg,
+        meta: payload?.meta || null,
+      };
+    }
+
+    function wireMsgToInternal(dto) {
+      const role = String(dto.role || "").toLowerCase();
+      const out = {
+        role: role === "tool" ? "tool" : role,
+        content: dto.content ?? null,
+        tool_call_id: dto.tool_call_id ?? dto.toolCallId ?? null,
+      };
+      const callsSrc = dto.tool_calls ?? dto.toolCalls;
+      if (Array.isArray(callsSrc) && callsSrc.length) {
+        out.tool_calls = callsSrc.map((c) => ({
+          id: c.id,
+          type: "function",
+          function: {
+            name: c.function?.name || "",
+            arguments: typeof c.function?.arguments === "string" ? c.function.arguments : JSON.stringify(c.function?.arguments ?? {}),
+          },
+        }));
+      }
+      const imgs =
+        dto.image_jpeg_base64 ??
+        dto.imageJpegBase64 ??
+        dto.imageJPEGBase64;
+      if (Array.isArray(imgs) && imgs.length) out.image_jpeg_base64 = imgs;
+      return out;
+    }
+
+    function internalToWire(m) {
+      const d = { role: m.role, content: m.content ?? null };
+      if (m.tool_call_id != null && m.tool_call_id !== "") {
+        d.tool_call_id = m.tool_call_id;
+      }
+      if (m.tool_calls && m.tool_calls.length) {
+        d.tool_calls = m.tool_calls;
+      }
+      if (m.role === "user" && m.image_jpeg_base64?.length) {
+        d.image_jpeg_base64 = m.image_jpeg_base64;
+      }
+      return d;
+    }
+
+    function uiMsgsToWire(list) {
+      return list.map((msg) => {
+        const payload = {};
+        if (msg.role === "user" && msg.attachedImages?.length) {
+          payload.attached_images_b64 = msg.attachedImages.map((u) => stripDataUrl(u)).filter(Boolean);
+        }
+        if (msg.svgPayload) {
+          payload.svg = { svg: msg.svgPayload.svg, caption: msg.svgPayload.caption };
+        }
+        if (msg.meta) {
+          payload.meta = {
+            duration_seconds: msg.meta.durationSeconds,
+            completion_tokens: msg.meta.completionTokens,
+            total_tokens: msg.meta.totalTokens,
+          };
+        }
+        const row = {
+          id: msg.id,
+          role: msg.role === "mentor" ? "mentor" : msg.role,
+          content: msg.text,
+        };
+        if (Object.keys(payload).length) row.payload = payload;
+        return row;
+      });
+    }
+
+    function parseCompletion(data) {
+      const choice = data.choices?.[0];
+      const msg = choice?.message || {};
+      const calls = (msg.tool_calls || []).map((c) => ({
+        id: c.id,
+        type: "function",
+        function: {
+          name: c.function?.name || "",
+          arguments: typeof c.function?.arguments === "string" ? c.function.arguments : JSON.stringify(c.function?.arguments ?? {}),
+        },
+      }));
+      const usage = data.usage
+        ? {
+            completionTokens: data.usage.completion_tokens ?? 0,
+            totalTokens: data.usage.total_tokens ?? 0,
+            durationSeconds: data.x_groq?.usage?.total_time ?? 0,
+          }
+        : null;
+      return { content: msg.content ?? null, toolCalls: calls, usage };
+    }
+
+    async function loadCfg() {
+      const r = await fetch("/app/config.json", { cache: "no-store" });
+      if (!r.ok) throw new Error("Missing /app/config.json — run deploy script.");
+      return await r.json();
+    }
+
+    async function loadSystemPrompt() {
+      const r = await fetch("/app/system_prompt.txt", { cache: "no-store" });
+      if (!r.ok) throw new Error("Missing system prompt");
+      return await r.text();
+    }
+
+    function apiBase() {
+      return `${location.origin}/whetstone/api`;
+    }
+
+    function completionsUrl() {
+      return `${location.origin}/v1/chat/completions`;
+    }
+
+    async function authHeader(sb) {
+      const { data, error } = await sb.auth.getSession();
+      if (error || !data.session) throw new Error("Not signed in");
+      return `Bearer ${data.session.access_token}`;
+    }
+
+    async function apiFetch(path, sb, opts = {}) {
+      const h = new Headers(opts.headers || {});
+      h.set("Authorization", await authHeader(sb));
+      if (opts.body && !h.has("Content-Type")) h.set("Content-Type", "application/json");
+      const r = await fetch(`${apiBase()}${path}`, { ...opts, headers: h });
+      const text = await r.text();
+      let j = null;
+      try {
+        j = text ? JSON.parse(text) : null;
+      } catch {
+        j = null;
+      }
+      if (!r.ok) throw new Error((j && j.error) || text.slice(0, 200) || r.statusText);
+      return j;
+    }
+
+    async function completeOpenAI(cfg, sb, messages) {
+      const headers = { "Content-Type": "application/json" };
+      if (cfg.aiAppToken) headers.Authorization = `Bearer ${cfg.aiAppToken}`;
+      const body = JSON.stringify({
+        model: cfg.aiModel,
+        messages,
+        tools: TOOLS,
+        tool_choice: "auto",
+      });
+      const r = await fetch(completionsUrl(), { method: "POST", headers, body });
+      const text = await r.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(text.slice(0, 300));
+      }
+      if (!r.ok) throw new Error(data.error?.message || text.slice(0, 300));
+      return parseCompletion(data);
+    }
+
+    function buildOpenAIMessages(systemPrompt, apiHistory) {
+      const head = [{ role: "system", content: systemPrompt }];
+      for (const m of apiHistory) {
+        if (m.role === "system") continue;
+        if (m.role === "user") {
+          const imgs = m.image_jpeg_base64 || [];
+          if (imgs.length) {
+            const parts = [];
+            const t = (m.content || "").trim();
+            if (t) parts.push({ type: "text", text: t });
+            for (const b64 of imgs) {
+              parts.push({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${b64}` } });
+            }
+            head.push({ role: "user", content: parts });
+          } else {
+            head.push({ role: "user", content: m.content ?? "" });
+          }
+          continue;
+        }
+        if (m.role === "assistant") {
+          const o = { role: "assistant", content: m.content ?? null };
+          if (m.tool_calls?.length) o.tool_calls = m.tool_calls;
+          head.push(o);
+          continue;
+        }
+        if (m.role === "tool") {
+          head.push({ role: "tool", tool_call_id: m.tool_call_id, content: m.content ?? "" });
+        }
+      }
+      return head;
+    }
+
+    async function main() {
+      /** @type {AppCfg} */
+      const cfg = await loadCfg();
+      if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+        document.getElementById("blocked").innerHTML =
+          "<p>Web app is not configured. Add <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> to the server env and redeploy.</p>";
+        return;
+      }
+
+      const sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+      });
+
+      const { data: sess0 } = await sb.auth.getSession();
+      if (!sess0.session) {
+        location.href = "/";
+        return;
+      }
+
+      const systemPrompt = await loadSystemPrompt();
+
+      document.getElementById("blocked").classList.add("hidden");
+      document.getElementById("shell").classList.remove("hidden");
+
+      const state = {
+        conversations: [],
+        activeId: null,
+        /** @type {Map<string, {apiHistory:any[], uiMessages:any[], title:string, total_tokens_used:number}>} */
+        cache: new Map(),
+        pendingChips: null,
+        /** @type {string[]} */
+        stagedJpegs: [],
+        thinking: false,
+      };
+
+      const elList = document.getElementById("convList");
+      const elMsgs = document.getElementById("msgs");
+      const elTitle = document.getElementById("convTitleLbl");
+      const elCtx = document.getElementById("ctxPct");
+      const elBanner = document.getElementById("banner");
+      const elThink = document.getElementById("thinking");
+      const elChips = document.getElementById("chipStrip");
+      const elTa = document.getElementById("ta");
+      const elThumb = document.getElementById("thumbRow");
+
+      function showBanner(msg) {
+        if (!msg) {
+          elBanner.classList.add("hidden");
+          elBanner.textContent = "";
+        } else {
+          elBanner.textContent = msg;
+          elBanner.classList.remove("hidden");
+        }
+      }
+
+      function setThinking(v) {
+        state.thinking = v;
+        elThink.classList.toggle("hidden", !v);
+      }
+
+      function activeConv() {
+        return state.cache.get(state.activeId);
+      }
+
+      function renderThumbs() {
+        elThumb.innerHTML = "";
+        for (const u of state.stagedJpegs) {
+          const im = document.createElement("img");
+          im.className = "thumb";
+          im.src = u;
+          elThumb.appendChild(im);
+        }
+      }
+
+      function renderChips(offer) {
+        if (!offer || !offer.chips?.length) {
+          elChips.classList.add("hidden");
+          elChips.innerHTML = "";
+          return;
+        }
+        elChips.classList.remove("hidden");
+        elChips.innerHTML = "";
+        for (const c of offer.chips) {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.textContent = c.label;
+          b.addEventListener("click", () => sendChipReply(c.label));
+          elChips.appendChild(b);
+        }
+        if (offer.includeOther) {
+          const o = document.createElement("button");
+          o.type = "button";
+          o.className = "other";
+          o.textContent = "Other";
+          o.addEventListener("click", () => {
+            state.pendingChips = null;
+            renderChips(null);
+            elTa.focus();
+          });
+          elChips.appendChild(o);
+        }
+      }
+
+      function renderMessages() {
+        const c = activeConv();
+        elMsgs.innerHTML = "";
+        if (!c) return;
+        for (const m of c.uiMessages) {
+          if (m.role === "user") {
+            const div = document.createElement("div");
+            div.className = "bubble user";
+            div.textContent = m.text || "";
+            elMsgs.appendChild(div);
+            for (const u of m.attachedImages || []) {
+              const im = document.createElement("img");
+              im.src = u;
+              im.style.maxWidth = "14rem";
+              im.style.borderRadius = "10px";
+              im.style.display = "block";
+              im.style.margin = "0.35rem 0 0 auto";
+              elMsgs.appendChild(im);
+            }
+            continue;
+          }
+          const row = document.createElement("div");
+          row.className = "blade-row";
+          row.innerHTML = '<div class="blade-rail"><span class="spark"></span><span class="edge"></span></div><div class="body" style="flex:1;min-width:0"></div>';
+          const body = row.querySelector(".body");
+          if (m.text) {
+            const div = document.createElement("div");
+            div.className = "bubble mentor";
+            div.innerHTML = formatMentorText(m.text);
+            body.appendChild(div);
+          }
+          if (m.svgPayload?.svg) {
+            const wrap = document.createElement("div");
+            wrap.className = "svg-wrap";
+            const ifr = document.createElement("iframe");
+            ifr.sandbox = "allow-same-origin";
+            ifr.referrerPolicy = "no-referrer";
+            ifr.srcdoc = svgSrcDoc(m.svgPayload.svg);
+            wrap.appendChild(ifr);
+            if (m.svgPayload.caption) {
+              const cap = document.createElement("div");
+              cap.className = "svg-cap";
+              cap.textContent = m.svgPayload.caption;
+              wrap.appendChild(cap);
+            }
+            body.appendChild(wrap);
+          }
+          elMsgs.appendChild(row);
+        }
+        elMsgs.scrollTop = elMsgs.scrollHeight;
+      }
+
+      function renderSidebar() {
+        elList.innerHTML = "";
+        for (const row of state.conversations) {
+          const id = row.id;
+          const div = document.createElement("div");
+          div.className = "conv-item" + (id === state.activeId ? " active" : "");
+          div.textContent = row.title || "Untitled";
+          div.addEventListener("click", () => selectConv(id));
+          elList.appendChild(div);
+        }
+      }
+
+      function updateCtx() {
+        const c = activeConv();
+        if (!c) {
+          elCtx.textContent = "";
+          return;
+        }
+        const used = c.total_tokens_used || 0;
+        const win = 128000;
+        const pct = Math.min(100, (used / win) * 100);
+        elCtx.textContent = `Context ~${pct.toFixed(1)}%`;
+      }
+
+      async function persistActive() {
+        const c = activeConv();
+        if (!c || !state.activeId) return;
+        const body = {
+          title: c.title,
+          total_tokens_used: c.total_tokens_used,
+          api_history: c.apiHistory.map(internalToWire),
+          ui_messages: uiMsgsToWire(c.uiMessages),
+        };
+        await apiFetch(`/conversations/${state.activeId}`, sb, { method: "PATCH", body: JSON.stringify(body) });
+      }
+
+      async function selectConv(id) {
+        state.pendingChips = null;
+        renderChips(null);
+        state.activeId = id;
+        elTitle.textContent = "Loading…";
+        showBanner("");
+        const j = await apiFetch(`/conversations/${id}`, sb);
+        const rec = j.conversation;
+        const apiHistory = (rec.api_history || []).map(wireMsgToInternal);
+        const uiMessages = (rec.messages || []).map(uiRowFromServer);
+        state.cache.set(id, {
+          apiHistory,
+          uiMessages,
+          title: rec.title || "Conversation",
+          total_tokens_used: rec.total_tokens_used ?? 0,
+        });
+        elTitle.textContent = state.cache.get(id).title;
+        renderSidebar();
+        renderMessages();
+        updateCtx();
+      }
+
+      async function hydrate() {
+        const j = await apiFetch("/conversations", sb);
+        state.conversations = j.conversations || [];
+        if (!state.conversations.length) {
+          await newConversation();
+          return;
+        }
+        state.activeId = state.conversations[0].id;
+        renderSidebar();
+        await selectConv(state.activeId);
+      }
+
+      async function newConversation() {
+        const id = uuid();
+        await apiFetch("/conversations", sb, {
+          method: "POST",
+          body: JSON.stringify({ id, title: "New conversation" }),
+        });
+        state.conversations.unshift({ id, title: "New conversation", total_tokens_used: 0 });
+        state.cache.set(id, { apiHistory: [], uiMessages: [], title: "New conversation", total_tokens_used: 0 });
+        state.activeId = id;
+        elTitle.textContent = "New conversation";
+        renderSidebar();
+        renderMessages();
+        updateCtx();
+      }
+
+      async function runLoopAfterUserSend() {
+        const c = activeConv();
+        if (!c) return;
+        const convId = state.activeId;
+        setThinking(true);
+        showBanner("");
+
+        while (true) {
+          const messages = buildOpenAIMessages(systemPrompt, c.apiHistory);
+          let comp;
+          try {
+            comp = await completeOpenAI(cfg, sb, messages);
+          } catch (e) {
+            showBanner(String(e.message || e));
+            setThinking(false);
+            await persistActive();
+            return;
+          }
+
+          const assistantWire = {
+            role: "assistant",
+            content: comp.content ?? null,
+            tool_calls:
+              comp.toolCalls?.length
+                ? comp.toolCalls.map((t) => ({
+                    id: t.id,
+                    type: "function",
+                    function: { name: t.function.name, arguments: t.function.arguments },
+                  }))
+                : undefined,
+          };
+          c.apiHistory.push(assistantWire);
+
+          if (comp.usage) c.total_tokens_used += comp.usage.totalTokens ?? 0;
+          if (comp.content && String(comp.content).trim()) {
+            c.uiMessages.push({
+              id: uuid(),
+              role: "mentor",
+              text: comp.content,
+              attachedImages: [],
+              svgPayload: null,
+              meta: comp.usage
+                ? {
+                    durationSeconds: comp.usage.durationSeconds,
+                    completionTokens: comp.usage.completionTokens,
+                    totalTokens: comp.usage.totalTokens,
+                  }
+                : null,
+            });
+            renderMessages();
+            updateCtx();
+          }
+
+          if (!comp.toolCalls?.length) {
+            setThinking(false);
+            await persistActive();
+            return;
+          }
+
+          let chipsEmitted = false;
+
+          for (const call of comp.toolCalls) {
+            const dispatched = dispatchTool(call);
+            const toolWire = {
+              role: "tool",
+              tool_call_id: call.id,
+              content: dispatched.toolMsg,
+            };
+            c.apiHistory.push(toolWire);
+
+            if (dispatched.svg) {
+              c.uiMessages.push({
+                id: uuid(),
+                role: "mentor",
+                text: "",
+                attachedImages: [],
+                svgPayload: dispatched.svg,
+                meta: null,
+              });
+            }
+            if (dispatched.chips) {
+              state.pendingChips = { conversationId: convId, ...dispatched.chips };
+              chipsEmitted = true;
+              renderChips(state.pendingChips);
+            }
+
+            renderMessages();
+          }
+
+          await persistActive();
+
+          if (chipsEmitted) {
+            setThinking(false);
+            return;
+          }
+        }
+      }
+
+      async function sendUserFromField() {
+        const c = activeConv();
+        if (!c) return;
+        const text = elTa.value.trim();
+        const imgs = [...state.stagedJpegs];
+        if (!text && !imgs.length) return;
+
+        const b64array = imgs.map(stripDataUrl).filter(Boolean);
+        const uiId = uuid();
+        c.uiMessages.push({
+          id: uiId,
+          role: "user",
+          text,
+          attachedImages: [...imgs],
+          svgPayload: null,
+          meta: null,
+        });
+
+        const apiCaption =
+          text ||
+          (b64array.length ? "(Student attached a photo with no caption.)" : null);
+        const apiUser = {
+          role: "user",
+          content: apiCaption,
+          image_jpeg_base64: b64array.length ? b64array : undefined,
+        };
+        c.apiHistory.push(apiUser);
+
+        elTa.value = "";
+        state.stagedJpegs = [];
+        renderThumbs();
+
+        state.pendingChips = null;
+        renderChips(null);
+
+        renderMessages();
+        await persistActive();
+        await runLoopAfterUserSend();
+      }
+
+      async function sendChipReply(label) {
+        elTa.value = label;
+        state.pendingChips = null;
+        renderChips(null);
+        await sendUserFromField();
+      }
+
+      document.getElementById("btnSend").addEventListener("click", () => sendUserFromField());
+
+      document.getElementById("btnNewConv").addEventListener("click", async () => {
+        await newConversation();
+      });
+
+      document.getElementById("btnAttach").addEventListener("click", () => document.getElementById("filePick").click());
+      document.getElementById("filePick").addEventListener("change", async (ev) => {
+        const fs = ev.target.files;
+        if (!fs?.length) return;
+        for (const f of fs) {
+          if (!f.type.startsWith("image/")) continue;
+          state.stagedJpegs.push(await imageToJpegDataUrl(f));
+        }
+        ev.target.value = "";
+        renderThumbs();
+      });
+
+      elTa.addEventListener("paste", async (ev) => {
+        const items = ev.clipboardData?.items;
+        if (!items) return;
+        let did = false;
+        for (const it of items) {
+          if (it.type.startsWith("image/")) {
+            const b = it.getAsFile();
+            if (b) {
+              state.stagedJpegs.push(await imageToJpegDataUrl(b));
+              did = true;
+            }
+          }
+        }
+        if (did) {
+          ev.preventDefault();
+          renderThumbs();
+        }
+      });
+
+      elTa.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" && !ev.shiftKey) {
+          ev.preventDefault();
+          sendUserFromField();
+        }
+      });
+
+      const gearBtn = document.getElementById("gearBtn");
+      const gearMenu = document.getElementById("gearMenu");
+      gearBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        gearMenu.classList.toggle("open");
+      });
+      document.addEventListener("click", () => gearMenu.classList.remove("open"));
+
+      document.getElementById("gHome").addEventListener("click", () => {
+        location.href = "/";
+      });
+      document.getElementById("gLogout").addEventListener("click", async () => {
+        await sb.auth.signOut();
+        location.href = "/";
+      });
+
+      async function resolveMeEmail() {
+        try {
+          const j = await apiFetch("/me", sb);
+          return (j.email || "").toLowerCase();
+        } catch {
+          const u = await sb.auth.getUser();
+          return (u.data.user?.email || "").toLowerCase();
+        }
+      }
+
+      const meEmail = await resolveMeEmail();
+      const owner = cfg.adminOwnerEmailLower && meEmail && meEmail === cfg.adminOwnerEmailLower.toLowerCase();
+      if (owner) {
+        document.getElementById("gAdmin").classList.remove("hidden");
+        document.getElementById("gAdmin").addEventListener("click", async () => {
+          const { data } = await sb.auth.getSession();
+          if (!data.session) return;
+          const r = await fetch("/admin/api/auth/supabase-exchange", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${data.session.access_token}` },
+          });
+          const t = await r.json();
+          if (!r.ok) {
+            alert(t.error || "Admin exchange failed");
+            return;
+          }
+          sessionStorage.setItem("whetstone_admin_jwt", t.token);
+          location.href = "/admin/";
+        });
+      }
+
+      document.getElementById("gDummy").addEventListener("click", () => alert("Appearance settings will live here later."));
+
+      await hydrate();
+    }
+
+    main().catch((e) => {
+      document.getElementById("blocked").classList.remove("hidden");
+      document.getElementById("blocked").innerHTML = "<p style='max-width:28rem'>" + escapeHtml(String(e.message || e)) + "</p>";
+    });
+  </script>
+</body>
+</html>

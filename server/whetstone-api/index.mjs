@@ -13,9 +13,8 @@
  */
 import http from "node:http";
 import { URL } from "node:url";
-import * as jose from "jose";
-import jwt from "jsonwebtoken";
 import pg from "pg";
+import { verifySupabaseAccessToken } from "../whetstone-shared/verify-supabase-access.mjs";
 
 const PREFIX = "/whetstone/api";
 const DATABASE_URL = process.env.DATABASE_URL || "";
@@ -23,16 +22,6 @@ const JWT_SECRET = process.env.SUPABASE_JWT_SECRET || "";
 const SUPABASE_URL = (process.env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const PORT = Number(process.env.WHETSTONE_API_PORT || 3001);
 const BIND = process.env.WHETSTONE_API_BIND || "127.0.0.1";
-
-/** Cached JWKS verifier for asymmetric Supabase user JWTs. */
-let remoteJWKS = null;
-function getJWKS() {
-  if (!SUPABASE_URL) return null;
-  if (!remoteJWKS) {
-    remoteJWKS = jose.createRemoteJWKSet(new URL(`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`));
-  }
-  return remoteJWKS;
-}
 
 const pool = DATABASE_URL ? new pg.Pool({ connectionString: DATABASE_URL }) : null;
 
@@ -67,69 +56,6 @@ async function readJsonBody(req) {
   } catch {
     return undefined;
   }
-}
-
-/** Resolved user key for `conversations.user_id` — same UUID as Supabase `auth.users.id` (JWT claim `sub`). */
-async function verifyUserId(authHeader) {
-  const m = /^Bearer\s+(.+)$/i.exec(authHeader || "");
-  if (!m) throw Object.assign(new Error("missing token"), { code: "auth" });
-  const token = m[1].trim();
-
-  const decoded = jwt.decode(token, { complete: true });
-  const alg = decoded?.header?.alg;
-
-  const issuer = SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : null;
-  const jwks = getJWKS();
-
-  // Legacy HS256 user tokens — shared secret.
-  if (alg === "HS256" && JWT_SECRET) {
-    const payload = jwt.verify(token, JWT_SECRET, {
-      algorithms: ["HS256"],
-      clockTolerance: 30,
-    });
-    const sub = payload.sub;
-    if (!sub || typeof sub !== "string") throw Object.assign(new Error("invalid sub"), { code: "auth" });
-    return sub;
-  }
-
-  // Supabase signing keys (ECC → ES256, RSA → RS256).
-  if ((alg === "ES256" || alg === "RS256") && jwks && issuer) {
-    try {
-      const { payload } = await jose.jwtVerify(token, jwks, {
-        issuer,
-        clockTolerance: "30s",
-      });
-      const sub = payload.sub;
-      if (!sub || typeof sub !== "string") throw Object.assign(new Error("invalid sub"), { code: "auth" });
-      return sub;
-    } catch (e) {
-      throw Object.assign(new Error(String(e?.message || e)), { code: "auth" });
-    }
-  }
-
-  // Intermediates: try legacy secret if configured.
-  if (JWT_SECRET) {
-    try {
-      const payload = jwt.verify(token, JWT_SECRET, {
-        algorithms: ["HS256"],
-        clockTolerance: 30,
-      });
-      const sub = payload.sub;
-      if (!sub || typeof sub !== "string") throw Object.assign(new Error("invalid sub"), { code: "auth" });
-      return sub;
-    } catch {
-      /* fall through */
-    }
-  }
-
-  throw Object.assign(
-    new Error(
-      alg === "ES256" || alg === "RS256"
-        ? "Asymmetric JWT: set SUPABASE_URL on the server for JWKS verification"
-        : `Unsupported JWT alg ${alg || "?"} — set SUPABASE_JWT_SECRET (HS256) and/or SUPABASE_URL (JWKS)`
-    ),
-    { code: "auth" }
-  );
 }
 
 async function listConversations(userId, res) {
@@ -337,10 +263,21 @@ async function handle(req, res) {
   }
 
   let userId;
+  /** @type {string|null} */
+  let sessionEmail = null;
   try {
-    userId = await verifyUserId(req.headers.authorization);
+    const sess = await verifySupabaseAccessToken(
+      { SUPABASE_URL, SUPABASE_JWT_SECRET: JWT_SECRET },
+      req.headers.authorization
+    );
+    userId = sess.sub;
+    sessionEmail = sess.email;
   } catch {
     return json(res, 401, { error: "Unauthorized" });
+  }
+
+  if (req.method === "GET" && tail === "me") {
+    return json(res, 200, { sub: userId, email: sessionEmail });
   }
 
   if (req.method === "GET" && tail === "conversations") {

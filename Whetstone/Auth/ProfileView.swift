@@ -5,9 +5,19 @@ import Supabase
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var auth: AuthManager
+    @EnvironmentObject private var agentModeStore: AgentModeStore
 
     @State private var email: String = ""
     @State private var signingOut = false
+
+    private var advancedToggleBinding: Binding<Bool> {
+        Binding(
+            get: { agentModeStore.mode == .advanced },
+            set: { on in
+                agentModeStore.setMode(on ? .advanced : .standard)
+            }
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,6 +45,44 @@ struct ProfileView: View {
                         }
                     }
                     .padding(.top, 8)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Agent mode")
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(Color.white.opacity(0.55))
+                            .tracking(1.4)
+
+                        HStack {
+                            Text(agentModeStore.mode == .advanced ? "Advanced" : "Standard")
+                                .font(.system(size: 14, weight: .medium, design: .monospaced))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(WhetstoneTheme.surfaceHigh.opacity(0.9))
+                                )
+                                .foregroundStyle(WhetstoneTheme.blade.opacity(0.95))
+
+                            Spacer()
+
+                            Toggle("", isOn: advancedToggleBinding)
+                                .labelsHidden()
+                                .tint(WhetstoneTheme.ember)
+                                .disabled(!auth.isAdvancedUser)
+                        }
+
+                        if !auth.isAdvancedUser {
+                            Text("Advanced Mode is available to approved users.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(WhetstoneTheme.blade.opacity(0.75))
+                        } else {
+                            Text("Standard keeps the coaching mentor. Advanced unlocks network + SSH tools on-device.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(WhetstoneTheme.blade.opacity(0.75))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
 
                     Spacer(minLength: 20)
 
@@ -113,4 +161,5 @@ struct ProfileView: View {
 #Preview {
     ProfileView()
         .environmentObject(AuthManager())
+        .environmentObject(AgentModeStore())
 }

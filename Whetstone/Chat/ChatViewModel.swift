@@ -88,7 +88,7 @@ final class ChatViewModel: ObservableObject {
             guard !completion.toolCalls.isEmpty else { break }
 
             for call in completion.toolCalls {
-                let result = dispatchToolCall(call)
+                let result = await dispatchToolCall(call, advancedToolsEnabled: false)
                 let toolMsg = Message.toolResult(callId: result.callId, content: result.output)
                 history.append(toolMsg)
                 systemHistory.append(toolMsg)

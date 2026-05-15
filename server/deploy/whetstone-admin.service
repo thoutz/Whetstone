@@ -1,0 +1,16 @@
+[Unit]
+Description=Whetstone admin API (marketing-site dashboard)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/whetstone-admin
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/whetstone-proxy.env
+ExecStart=/usr/bin/node /opt/whetstone-admin/index.mjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

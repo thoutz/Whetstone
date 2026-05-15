@@ -1,0 +1,10 @@
+{
+  "name": "whetstone-shared",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "jose": "^5.9.6",
+    "jsonwebtoken": "^9.0.2"
+  }
+}

@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Whetstone Admin</title>
+  <style>
+    :root {
+      --bg: #0a0b0d;
+      --panel: #121418;
+      --border: #2a2e36;
+      --text: #d4cfc4;
+      --text-strong: #ece8df;
+      --muted: #9a968d;
+      --muted2: #7a766d;
+      --accent: #c9a227;
+      --danger: #c45c5c;
+      --ok: #7aaa7a;
+      --font-sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    h2.panel-title, h3 { color: var(--text-strong); }
+    button, input, textarea, select {
+      font-family: inherit;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+    button {
+      cursor: pointer;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      padding: 0.5rem 0.95rem;
+    }
+    button.primary {
+      background: linear-gradient(180deg, #3d3520 0%, #2a2618 100%);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    button.danger {
+      border-color: #5a3030;
+      color: var(--danger);
+    }
+    input, textarea {
+      width: 100%;
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0e1013;
+      color: var(--text-strong);
+    }
+    select {
+      width: 100%;
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0e1013;
+      color: var(--text-strong);
+    }
+    textarea.sql {
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 0.85rem;
+      min-height: 140px;
+      line-height: 1.45;
+      color: var(--text-strong);
+    }
+    label { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.35rem; }
+
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.65rem 0.85rem;
+      align-items: end;
+      margin-bottom: 0.75rem;
+    }
+    .filter-grid .span-2 { grid-column: span 2; }
+    @media (max-width: 640px) {
+      .filter-grid .span-2 { grid-column: span 1; }
+    }
+    .hint-bar {
+      font-size: 0.82rem;
+      color: var(--muted2);
+      margin: 0 0 0.65rem;
+      line-height: 1.45;
+    }
+
+    /* Login */
+    #view-login {
+      max-width: 380px;
+      margin: 4rem auto;
+      padding: 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    #view-login h1 { font-weight: 600; margin: 0 0 0.25rem; font-size: 1.35rem; }
+    #view-login .sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .field { margin-bottom: 1rem; }
+    #loginErr {
+      display: none;
+      margin-top: 0.75rem;
+      padding: 0.65rem;
+      border-radius: 8px;
+      border: 1px solid #5a3030;
+      color: var(--danger);
+      font-size: 0.9rem;
+    }
+
+    /* Shell */
+    #view-app { display: none; flex-direction: row; min-height: 100vh; }
+    #sidebar {
+      width: 200px;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      padding: 1rem 0.75rem;
+      flex-shrink: 0;
+    }
+    #sidebar .brand {
+      font-weight: 700;
+      padding: 0.25rem 0.65rem;
+      margin-bottom: 1.25rem;
+      letter-spacing: 0.04em;
+    }
+    nav a {
+      display: block;
+      padding: 0.55rem 0.65rem;
+      margin-bottom: 0.35rem;
+      border-radius: 8px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    nav a:hover { color: var(--text); background: #1a1d22; }
+    nav a.active { color: var(--accent); border: 1px solid var(--border); background: #1a1812; }
+
+    #main {
+      flex: 1;
+      overflow: auto;
+      padding: 1.25rem 1.5rem 2rem;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      background: #0e1013;
+      margin-bottom: 1rem;
+    }
+    h2.panel-title {
+      margin: 0 0 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+    }
+
+    /* Stats */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.85rem;
+    }
+    .stat-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.9rem;
+      background: var(--panel);
+    }
+    .stat-card span { font-size: 1.65rem; font-weight: 700; color: var(--accent); }
+    .stat-card small { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.85rem; }
+    #chartWrap { margin-top: 1rem; }
+    #dailyChart {
+      width: 100%;
+      height: 200px;
+      display: block;
+      border-radius: 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+
+    /* Storage meters */
+    .storage-sub {
+      margin: 0 0 0.75rem;
+      font-size: 0.82rem;
+      color: var(--muted2);
+      line-height: 1.45;
+    }
+    .meter-block { margin-bottom: 0.85rem; }
+    .meter-block:last-child { margin-bottom: 0; }
+    .meter-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .meter-meta strong { color: var(--text-strong); font-weight: 600; }
+    .meter-track {
+      height: 10px;
+      border-radius: 999px;
+      background: #1a1d22;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .meter-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #7a6a2a 0%, var(--accent) 100%);
+      min-width: 2px;
+      transition: width 0.2s ease;
+    }
+    .meter-fill.meter-warn {
+      background: linear-gradient(90deg, #6a5a20 0%, #d4a020 100%);
+    }
+    .meter-fill.meter-danger {
+      background: linear-gradient(90deg, #5a3030 0%, var(--danger) 100%);
+    }
+    .storage-table-list { margin-top: 0.75rem; }
+    .storage-trow {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.35rem 0.65rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+      font-size: 0.8rem;
+    }
+    .storage-trow code { font-size: 0.72rem; }
+    .storage-trow .tbytes { color: var(--muted); text-align: right; white-space: nowrap; }
+    .storage-trow .tbar { grid-column: 1 / -1; }
+
+    table.data {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    table.data th, table.data td {
+      padding: 0.5rem 0.45rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      word-break: break-word;
+    }
+    table.data th { color: var(--muted); font-weight: 600; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    table.data td.name-cell { line-height: 1.4; }
+    .user-name { color: var(--text-strong); font-weight: 600; }
+    .user-email { color: var(--muted); font-size: 0.82rem; }
+    .user-id-mono { font-size: 0.72rem; color: var(--muted2); font-family: ui-monospace, Menlo, monospace; margin-top: 0.2rem; display: block; word-break: break-all; }
+
+    .pager {
+      margin-top: 0.85rem;
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .pill { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 6px; background: var(--panel); border: 1px solid var(--border); font-size: 0.76rem; }
+    code { font-size: 0.8rem; background: var(--panel); padding: 0.1rem 0.35rem; border-radius: 4px; border: 1px solid var(--border); }
+
+    .msg-role { font-size: 0.72rem; text-transform: uppercase; color: var(--muted); }
+    pre.msg-pre {
+      margin: 0.35rem 0 0;
+      white-space: pre-wrap;
+      font-family: ui-monospace, Menlo, monospace;
+      font-size: 0.84rem;
+      line-height: 1.5;
+      color: var(--text);
+    }
+    .hidden { display: none !important; }
+    #apiErr {
+      padding: 0.65rem;
+      border-radius: 8px;
+      border: 1px solid #5a3030;
+      color: var(--danger);
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .row-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    #sql-result { overflow: auto; max-height: 55vh; }
+  </style>
+</head>
+<body>
+  <div id="apiErr"></div>
+
+  <div id="view-login">
+    <h1>Whetstone Admin</h1>
+    <p class="sub">Restricted dashboard — sign in to continue.</p>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password">
+    </div>
+    <button type="button" class="primary" style="width:100%; padding: 0.65rem" id="btnLogin">Sign in</button>
+    <div id="loginErr"></div>
+  </div>
+
+  <div id="view-app">
+    <aside id="sidebar">
+      <div class="brand">WHETSTONE</div>
+      <nav id="nav">
+        <a href="#" data-pane="overview" class="active">Overview</a>
+        <a href="#" data-pane="conversations">Conversations</a>
+        <a href="#" data-pane="sql">SQL console</a>
+      </nav>
+    </aside>
+    <main id="main">
+      <div class="topbar">
+        <span class="muted" id="loggedAs" style="color:var(--muted);font-size:0.85rem;"></span>
+        <button type="button" id="btnLogout">Log out</button>
+      </div>
+
+      <section id="pane-overview" class="pane">
+        <h2 class="panel-title">Overview</h2>
+        <div id="overviewStats"></div>
+        <div class="panel" id="chartWrap">
+          <h2 class="panel-title" style="margin-top:0">Messages per day (last 7)</h2>
+          <canvas id="dailyChart" width="900" height="200" aria-label="daily message chart"></canvas>
+        </div>
+        <div class="panel" id="storageWrap">
+          <h2 class="panel-title" style="margin-top:0">Database &amp; server storage</h2>
+          <div id="storagePanel"><p style="color:var(--muted)">Loading…</p></div>
+        </div>
+      </section>
+
+      <section id="pane-conversations" class="pane hidden">
+        <h2 class="panel-title">Conversations</h2>
+        <p id="convProfileHint" class="hint-bar hidden"></p>
+        <div class="panel">
+          <h2 class="panel-title" style="margin-top:0">Search &amp; filters</h2>
+          <div class="filter-grid">
+            <div style="grid-column: 1 / -1; max-width: 100%;" class="span-2">
+              <label for="cq">Title contains</label>
+              <input id="cq" type="search" placeholder="Conversation title…">
+            </div>
+            <div class="span-2">
+              <label for="cfMsg">Message contains</label>
+              <input id="cfMsg" type="search" placeholder="Any message body text…">
+            </div>
+            <div>
+              <label for="cfUidPart">User ID contains</label>
+              <input id="cfUidPart" type="text" placeholder="Substring of UUID…">
+            </div>
+            <div>
+              <label for="cfUserExact">User ID (exact)</label>
+              <input id="cfUserExact" type="text" placeholder="Full UUID…">
+            </div>
+            <div>
+              <label for="cfUpdAfter">Updated after (UTC)</label>
+              <input id="cfUpdAfter" type="datetime-local" step="60">
+            </div>
+            <div>
+              <label for="cfUpdBefore">Updated before (UTC)</label>
+              <input id="cfUpdBefore" type="datetime-local" step="60">
+            </div>
+            <div>
+              <label for="cfTokMin">Min tokens</label>
+              <input id="cfTokMin" type="number" min="0" step="1" placeholder="0">
+            </div>
+            <div>
+              <label for="cfTokMax">Max tokens</label>
+              <input id="cfTokMax" type="number" min="0" step="1" placeholder="—">
+            </div>
+            <div>
+              <label for="cfSort">Sort</label>
+              <select id="cfSort">
+                <option value="updated_desc">Updated (newest)</option>
+                <option value="updated_asc">Updated (oldest)</option>
+                <option value="created_desc">Created (newest)</option>
+                <option value="created_asc">Created (oldest)</option>
+                <option value="tokens_desc">Tokens (high → low)</option>
+                <option value="tokens_asc">Tokens (low → high)</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button type="button" class="primary" id="btnConvSearch">Apply filters</button>
+            <button type="button" id="btnConvReset">Clear</button>
+          </div>
+        </div>
+        <div id="convTableWrap" class="panel"></div>
+        <div id="convDetailWrap" class="panel hidden"></div>
+      </section>
+
+      <section id="pane-sql" class="pane hidden">
+        <h2 class="panel-title">SQL console</h2>
+        <p style="color:var(--muted); font-size:0.9rem;">Runs against the VPS <code>whetstone_conv</code> DB. Dangerous operations are possible.</p>
+        <div class="panel">
+          <label for="sqlText">Statement</label>
+          <textarea id="sqlText" class="sql" spellcheck="false" placeholder="SELECT * FROM conversations LIMIT 10;"></textarea>
+          <div style="margin-top:0.75rem;">
+            <button type="button" class="primary" id="btnRunSql">Run</button>
+          </div>
+          <div id="sql-result" style="margin-top:1rem;"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      var API_PREFIX = '/admin/api';
+      var TOKEN_KEY = 'whetstone_admin_jwt';
+
+      function token() {
+        return sessionStorage.getItem(TOKEN_KEY) || '';
+      }
+      function setToken(t) {
+        if (t) sessionStorage.setItem(TOKEN_KEY, t);
+        else sessionStorage.removeItem(TOKEN_KEY);
+      }
+
+      function showApiErr(msg) {
+        var el = document.getElementById('apiErr');
+        if (!msg) { el.style.display = 'none'; el.textContent = ''; return; }
+        el.style.display = 'block';
+        el.textContent = msg;
+      }
+
+      async function api(path, opts) {
+        opts = opts || {};
+        var headers = opts.headers || {};
+        headers['Content-Type'] = 'application/json';
+        var t = token();
+        if (t) headers['Authorization'] = 'Bearer ' + t;
+        var res = await fetch(API_PREFIX + path, {
+          method: opts.method || 'GET',
+          headers: headers,
+          body: opts.body != null ? JSON.stringify(opts.body) : undefined,
+        });
+        var text = await res.text();
+        var data = null;
+        try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
+        if (!res.ok) {
+          if (res.status === 401 && path !== '/auth/login') {
+            setToken('');
+            showLogin(true);
+            throw new Error('Session expired.');
+          }
+          var err = (data && data.error) ? data.error : (text.slice(0, 200) || res.statusText);
+          throw new Error(err);
+        }
+        return data;
+      }
+
+      function showLogin(bool) {
+        document.getElementById('view-login').style.display = bool ? 'block' : 'none';
+        document.getElementById('view-app').style.display = bool ? 'none' : 'flex';
+      }
+
+      async function login() {
+        var email = document.getElementById('email').value.trim();
+        var password = document.getElementById('password').value;
+        var errEl = document.getElementById('loginErr');
+        errEl.style.display = 'none';
+        try {
+          var d = await api('/auth/login', { method: 'POST', body: { email: email, password: password } });
+          if (!d.token) throw new Error('No token.');
+          setToken(d.token);
+          showLogin(false);
+          document.getElementById('loggedAs').textContent = email ? ('Signed in: ' + email) : '';
+          showApiErr('');
+          refreshOverview();
+        } catch (e) {
+          errEl.style.display = 'block';
+          errEl.textContent = String(e.message || e);
+        }
+      }
+
+      function logout() {
+        setToken('');
+        showLogin(true);
+      }
+
+      function switchPane(id) {
+        document.querySelectorAll('.pane').forEach(function (p) {
+          p.classList.add('hidden');
+        });
+        var pane = document.getElementById('pane-' + id);
+        if (pane) pane.classList.remove('hidden');
+        document.querySelectorAll('#nav a').forEach(function (a) {
+          a.classList.toggle('active', a.dataset.pane === id);
+        });
+        if (id === 'overview') refreshOverview();
+        if (id === 'conversations') loadConversations(1);
+      }
+
+      function drawChart(series) {
+        var canvas = document.getElementById('dailyChart');
+        if (!canvas || !canvas.getContext) return;
+        var ctx = canvas.getContext('2d');
+        var w = canvas.width;
+        var h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#121418';
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = '#23262d';
+        ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+        if (!series || !series.length) {
+          ctx.fillStyle = '#8a8680';
+          ctx.font = '14px sans-serif';
+          ctx.fillText('No data.', 24, h / 2);
+          return;
+        }
+        var max = Math.max.apply(null, series.map(function (x) { return x.count || 0; }), 1);
+        var padL = 40, padB = 32, padR = 16, padT = 16;
+        var cw = (w - padL - padR) / series.length;
+        ctx.fillStyle = '#c9a227';
+        series.forEach(function (d, i) {
+          var barH = ((d.count || 0) / max) * (h - padT - padB);
+          var x = padL + i * cw + cw * 0.18;
+          var bw = cw * 0.64;
+          var y = h - padB - barH;
+          ctx.fillRect(x, y, bw, Math.max(barH, 1));
+          ctx.fillStyle = '#8a8680';
+          ctx.font = '10px monospace';
+          var lbl = String(d.day || '').slice(5).replace(/^0/, '');
+          ctx.fillText(lbl || '', x + 4, h - padB + 14);
+          ctx.fillStyle = '#c9a227';
+        });
+      }
+
+      function formatBytes(n) {
+        if (n == null || !Number.isFinite(Number(n))) return '—';
+        var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        var i = 0;
+        var x = Number(n);
+        while (x >= 1024 && i < units.length - 1) { x /= 1024; i++; }
+        if (i === 0) return Math.round(x) + ' ' + units[i];
+        return (x >= 10 ? x.toFixed(1) : x.toFixed(2)).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1') + ' ' + units[i];
+      }
+
+      function meterBlock(labelHtml, pct, captionHtml, warnClass) {
+        var w = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+        var wc = warnClass ? (' ' + warnClass) : '';
+        return '<div class="meter-block">'
+          + '<div class="meter-meta"><span>' + labelHtml + '</span><span>' + captionHtml + '</span></div>'
+          + '<div class="meter-track"><div class="meter-fill' + wc + '" style="width:' + w + '%"></div></div>'
+          + '</div>';
+      }
+
+      function renderStoragePayload(st, errMsg) {
+        var el = document.getElementById('storagePanel');
+        if (!el) return;
+        if (errMsg) {
+          el.innerHTML = '<p style="color:var(--danger)">' + escapeHtml(errMsg) + '</p>';
+          return;
+        }
+        if (!st || !st.database) {
+          el.innerHTML = '<p style="color:var(--muted)">No storage data.</p>';
+          return;
+        }
+        var html = '';
+        var dbPretty = escapeHtml(st.database.size_pretty || formatBytes(st.database.bytes));
+        var dbName = escapeHtml(String(st.database.name || ''));
+        html += '<p class="storage-sub">PostgreSQL logical size <strong style="color:var(--text-strong);">' + dbPretty + '</strong>'
+          + (dbName ? ' · database <code>' + dbName + '</code>' : '') + '</p>';
+
+        var h = st.host_volume;
+        if (h && h.total_bytes > 0) {
+          var cap = escapeHtml(formatBytes(h.used_bytes) + ' / ' + formatBytes(h.total_bytes) + ' · ' + String(h.use_percent) + '% used');
+          var warn = h.use_percent >= 92 ? 'meter-danger' : (h.use_percent >= 82 ? 'meter-warn' : '');
+          var sub = escapeHtml(st.df_path || '/') + ' — mount reported as <code>' + escapeHtml(String(h.mount || '')) + '</code>';
+          html += '<div style="margin:0.75rem 0 0.35rem;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Host filesystem</div>';
+          html += '<p class="storage-sub">' + sub + '</p>';
+          html += meterBlock('<strong style="color:var(--text-strong);">Disk use</strong>', h.use_percent, cap, warn);
+          if (st.database.bytes > 0) {
+            var dbVsDisk = Math.min(100, Math.round((100 * st.database.bytes) / h.total_bytes));
+            html += meterBlock(
+              '<span>DB size vs this volume capacity</span>',
+              dbVsDisk,
+              escapeHtml(String(dbVsDisk) + '% of ' + formatBytes(h.total_bytes)),
+              ''
+            );
+          }
+        } else {
+          html += '<p class="storage-sub">Host disk meter unavailable: <code>df -k</code> on <code>' + escapeHtml(String(st.df_path || '/')) + '</code> did not return usable data.</p>';
+        }
+
+        var tables = st.tables || [];
+        var sumB = Number(st.table_sum_bytes) || 0;
+        if (tables.length && sumB > 0) {
+          html += '<div style="margin:1rem 0 0.35rem;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);">Largest tables (table + indexes, top ' + tables.length + ')</div>';
+          html += '<div class="storage-table-list">';
+          tables.forEach(function (t) {
+            var label = escapeHtml(String(t.schema || '') + '.' + String(t.table || ''));
+            var pct = Math.round((100 * (t.total_bytes || 0)) / sumB);
+            html += '<div class="storage-trow">';
+            html += '<div><code>' + label + '</code></div>';
+            html += '<div class="tbytes">' + escapeHtml(t.total_pretty || formatBytes(t.total_bytes)) + '</div>';
+            html += '<div class="tbar"><div class="meter-track"><div class="meter-fill" style="width:' + pct + '%"></div></div></div>';
+            html += '</div>';
+          });
+          html += '</div>';
+        }
+
+        if (st.note)
+          html += '<p class="storage-sub" style="margin-top:0.85rem">' + escapeHtml(st.note) + '</p>';
+
+        el.innerHTML = html;
+      }
+
+      async function refreshOverview() {
+        var root = document.getElementById('overviewStats');
+        var sto = document.getElementById('storagePanel');
+        root.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
+        if (sto) sto.innerHTML = '<p style="color:var(--muted)">Loading…</p>';
+
+        var results = await Promise.allSettled([api('/stats'), api('/storage')]);
+
+        function rejMsg(r) {
+          if (!r || r.status !== 'rejected' || !r.reason) return '';
+          var e = r.reason;
+          return String(e.message != null ? e.message : e);
+        }
+
+        if (results[0].status === 'fulfilled') {
+          var s = results[0].value;
+          root.innerHTML = '';
+          var grid = document.createElement('div');
+          grid.className = 'stat-grid';
+          function card(label, val) {
+            var c = document.createElement('div');
+            c.className = 'stat-card';
+            c.innerHTML = '<span>' + val + '</span><small>' + label + '</small>';
+            return c;
+          }
+          grid.appendChild(card('Distinct users', s.distinct_users));
+          grid.appendChild(card('Conversations', s.conversation_count));
+          grid.appendChild(card('Messages', s.message_count));
+          grid.appendChild(card('Σ tokens stored', s.total_tokens));
+          root.appendChild(grid);
+          drawChart(s.messages_by_day || []);
+        } else {
+          root.innerHTML = '<p style="color:var(--danger)">' + escapeHtml(rejMsg(results[0])) + '</p>';
+        }
+
+        if (results[1].status === 'fulfilled')
+          renderStoragePayload(results[1].value, null);
+        else if (sto)
+          renderStoragePayload(null, rejMsg(results[1]) || 'Storage request failed.');
+
+        var sFail = results[0].status === 'rejected';
+        var stFail = results[1].status === 'rejected';
+        if (sFail && stFail) showApiErr(rejMsg(results[0]) + ' · ' + rejMsg(results[1]));
+        else if (sFail) showApiErr(rejMsg(results[0]));
+        else if (stFail) showApiErr('Overview loaded — storage failed: ' + rejMsg(results[1]));
+        else showApiErr('');
+      }
+
+      var convPage = 1;
+
+      function convQueryUrl(page) {
+        var p = [];
+        p.push('page=' + encodeURIComponent(String(page)));
+        p.push('limit=25');
+        var cq = document.getElementById('cq').value.trim();
+        if (cq) p.push('q=' + encodeURIComponent(cq));
+        var msg = document.getElementById('cfMsg').value.trim();
+        if (msg) p.push('message_contains=' + encodeURIComponent(msg));
+        var uidp = document.getElementById('cfUidPart').value.trim();
+        if (uidp) p.push('user_id_part=' + encodeURIComponent(uidp));
+        var uide = document.getElementById('cfUserExact').value.trim();
+        if (uide) p.push('user_id=' + encodeURIComponent(uide));
+        var ua = document.getElementById('cfUpdAfter').value;
+        if (ua) p.push('updated_after=' + encodeURIComponent(new Date(ua).toISOString()));
+        var ub = document.getElementById('cfUpdBefore').value;
+        if (ub) p.push('updated_before=' + encodeURIComponent(new Date(ub).toISOString()));
+        var tmin = document.getElementById('cfTokMin').value.trim();
+        if (tmin !== '') p.push('min_tokens=' + encodeURIComponent(tmin));
+        var tmax = document.getElementById('cfTokMax').value.trim();
+        if (tmax !== '') p.push('max_tokens=' + encodeURIComponent(tmax));
+        p.push('sort=' + encodeURIComponent(document.getElementById('cfSort').value));
+        return '/conversations?' + p.join('&');
+      }
+
+      function accountCell(r) {
+        var bits = '';
+        if (r.user_display_name) bits += '<div class="user-name">' + escapeHtml(r.user_display_name) + '</div>';
+        if (r.user_email) bits += '<div class="user-email">' + escapeHtml(r.user_email) + '</div>';
+        bits += '<span class="user-id-mono">' + escapeHtml(r.user_id || '') + '</span>';
+        return bits;
+      }
+
+      async function loadConversations(page) {
+        convPage = page || convPage || 1;
+        var wrap = document.getElementById('convTableWrap');
+        var hintEl = document.getElementById('convProfileHint');
+        wrap.innerHTML = 'Loading…';
+        document.getElementById('convDetailWrap').classList.add('hidden');
+        document.getElementById('convDetailWrap').innerHTML = '';
+        try {
+          var qPath = convQueryUrl(convPage);
+          var d = await api(qPath);
+          var rows = d.conversations || [];
+          var total = d.total || 0;
+          if (d.user_profiles_enabled) {
+            hintEl.classList.add('hidden');
+          } else {
+            hintEl.classList.remove('hidden');
+            hintEl.textContent =
+              'Linked account names/emails require SUPABASE_SERVICE_ROLE_KEY on the server (same Supabase project as the app). You can still filter by user UUID.';
+          }
+
+          var tbl = '<table class="data"><thead><tr><th>Updated</th><th>Title</th><th>Tokens</th><th>Account</th><th></th></tr></thead><tbody>';
+          rows.forEach(function (r) {
+            tbl += '<tr data-id="' + r.id + '"><td>' + (r.updated_at || '').slice(0, 19).replace('T', ' ') + '</td>'
+              + '<td>' + escapeHtml(r.title || '') + '</td><td>' + (r.total_tokens_used || 0) + '</td>'
+              + '<td class="name-cell">' + accountCell(r) + '</td>'
+              + '<td class="row-actions"><button type="button" data-act="open" data-id="' + r.id + '">Open</button>'
+              + ' <button type="button" class="danger" data-act="del" data-id="' + r.id + '">Delete</button></td></tr>';
+          });
+          tbl += '</tbody></table>';
+          var pages = Math.max(1, Math.ceil(total / 25));
+          tbl += '<div class="pager">Page ' + convPage + ' / ' + pages + ' — ' + total + ' total ';
+          tbl += '<button type="button" data-p="prev"' + (convPage <= 1 ? ' disabled' : '') + '>Prev</button>';
+          tbl += '<button type="button" data-p="next"' + (convPage >= pages ? ' disabled' : '') + '>Next</button></div>';
+          wrap.innerHTML = tbl;
+
+          wrap.querySelectorAll('[data-act="open"]').forEach(function (b) {
+            b.addEventListener('click', function () { openConv(b.dataset.id); });
+          });
+          wrap.querySelectorAll('[data-act="del"]').forEach(function (b) {
+            b.addEventListener('click', function () { deleteConvAsk(b.dataset.id); });
+          });
+          var prev = wrap.querySelector('[data-p="prev"]');
+          var next = wrap.querySelector('[data-p="next"]');
+          if (prev) prev.addEventListener('click', function () { if (convPage > 1) loadConversations(convPage - 1); });
+          if (next) next.addEventListener('click', function () { if (convPage < pages) loadConversations(convPage + 1); });
+        } catch (e) {
+          wrap.innerHTML = '<p style="color:var(--danger)">' + escapeHtml(String(e.message || e)) + '</p>';
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      }
+
+      async function openConv(id) {
+        var detail = document.getElementById('convDetailWrap');
+        detail.classList.remove('hidden');
+        detail.innerHTML = 'Loading…';
+        try {
+          var d = await api('/conversations/' + encodeURIComponent(id));
+          var c = d.conversation;
+          var msgs = (c.messages || []).slice();
+          var html = '';
+          html += '<div style="margin-bottom:0.75rem;"><strong style="color:var(--text-strong);">Conversation</strong> <span class="pill">' + escapeHtml(c.id || '') + '</span></div>';
+          html += '<div style="margin-bottom:1rem;line-height:1.5;"><strong style="color:var(--text-strong);">Account</strong><br>'
+            + (c.user_display_name ? '<span class="user-name">' + escapeHtml(c.user_display_name) + '</span><br>' : '')
+            + (c.user_email ? '<span class="user-email">' + escapeHtml(c.user_email) + '</span><br>' : '')
+            + '<span class="user-id-mono">' + escapeHtml(String(c.user_id || '')) + '</span></div>';
+          html += '<div style="margin:0.85rem 0;">';
+          html += '<label>Title</label><div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.35rem;">';
+          html += '<input id="editTitle" value="' + escapeHtml(c.title || '') + '" style="max-width:480px">';
+          html += '<button type="button" class="primary" id="btnSaveTitle" data-id="' + escapeHtml(c.id) + '">Save title</button></div>';
+          html += '</div>';
+          html += '<hr style="border:none;border-top:1px solid var(--border); margin:1rem 0">';
+          html += '<h3 style="margin:0 0 0.75rem;font-size:1rem">Messages (' + msgs.length + ')</h3>';
+          msgs.sort(function (a,b) { return (a.sort_order||0)-(b.sort_order||0); });
+          msgs.forEach(function (m) {
+            html += '<div style="border-bottom:1px solid var(--border);padding:0.65rem 0">';
+            html += '<span class="msg-role">' + escapeHtml(m.role || '') + '</span> <small style="color:var(--muted)">' + escapeHtml(String(m.created_at||'').slice(0,19)) + '</small>';
+            html += '<pre class="msg-pre">' + escapeHtml(String(m.content == null ? '' : m.content)) + '</pre>';
+            if (m.payload) {
+              html += '<details><summary style="cursor:pointer;color:var(--muted);font-size:0.82rem;">payload</summary>'
+                + '<pre class="msg-pre">' + escapeHtml(JSON.stringify(m.payload, null, 2)) + '</pre></details>';
+            }
+            html += '</div>';
+          });
+          detail.innerHTML = html;
+          document.getElementById('btnSaveTitle').addEventListener('click', async function () {
+            var nid = document.getElementById('btnSaveTitle').dataset.id;
+            var t = document.getElementById('editTitle').value;
+            await api('/conversations/' + encodeURIComponent(nid), { method: 'PATCH', body: { title: t } });
+            loadConversations(convPage);
+            openConv(nid);
+          });
+        } catch (e) {
+          detail.innerHTML = '<p style="color:var(--danger)">' + escapeHtml(String(e.message||e)) + '</p>';
+        }
+      }
+
+      async function deleteConvAsk(id) {
+        if (!confirm('Delete conversation ' + id + ' and all messages?')) return;
+        try {
+          await api('/conversations/' + encodeURIComponent(id), { method: 'DELETE' });
+          loadConversations(convPage);
+        } catch (e) {
+          alert(String(e.message || e));
+        }
+      }
+
+      document.getElementById('btnLogin').addEventListener('click', login);
+      document.getElementById('password').addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') login();
+      });
+      document.getElementById('btnLogout').addEventListener('click', logout);
+
+      document.querySelectorAll('#nav a').forEach(function (a) {
+        a.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          switchPane(a.dataset.pane);
+        });
+      });
+
+      document.getElementById('btnConvSearch').addEventListener('click', function () {
+        loadConversations(1);
+      });
+      document.getElementById('btnConvReset').addEventListener('click', function () {
+        document.getElementById('cq').value = '';
+        document.getElementById('cfMsg').value = '';
+        document.getElementById('cfUidPart').value = '';
+        document.getElementById('cfUserExact').value = '';
+        document.getElementById('cfUpdAfter').value = '';
+        document.getElementById('cfUpdBefore').value = '';
+        document.getElementById('cfTokMin').value = '';
+        document.getElementById('cfTokMax').value = '';
+        document.getElementById('cfSort').value = 'updated_desc';
+        loadConversations(1);
+      });
+      document.getElementById('cq').addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter') loadConversations(1);
+      });
+
+      document.getElementById('btnRunSql').addEventListener('click', async function () {
+        var txt = document.getElementById('sqlText').value;
+        var out = document.getElementById('sql-result');
+        out.innerHTML = 'Running…';
+        try {
+          var d = await api('/sql', { method: 'POST', body: { sql: txt } });
+          renderSqlResult(out, d);
+        } catch (e) {
+          out.innerHTML = '<p style="color:var(--danger)">' + escapeHtml(String(e.message||e)) + '</p>';
+        }
+      });
+
+      function renderSqlResult(container, d) {
+        if (d.note) container.innerHTML = '<p style="color:var(--ok);">' + escapeHtml(d.note) + '</p>';
+        else if (d.columns && d.rows) {
+          var tbl = '<table class="data"><thead><tr>';
+          d.columns.forEach(function (c) { tbl += '<th>' + escapeHtml(String(c)) + '</th>'; });
+          tbl += '</tr></thead><tbody>';
+          d.rows.slice(0, 5000).forEach(function (row) {
+            tbl += '<tr>';
+            row.forEach(function (cell) {
+              tbl += '<td>' + escapeHtml(cell === null ? '∅' : String(cell)) + '</td>';
+            });
+            tbl += '</tr>';
+          });
+          tbl += '</tbody></table>';
+          if (d.rows.length > 5000) tbl += '<p style="color:var(--muted); margin-top:0.5rem">Showing first 5000 rows.</p>';
+          container.innerHTML = tbl;
+        } else {
+          container.innerHTML = '<pre class="msg-pre">' + escapeHtml(JSON.stringify(d, null, 2)) + '</pre>';
+        }
+      }
+
+      if (token()) {
+        showLogin(false);
+        document.getElementById('loggedAs').textContent = '(session restored)';
+        refreshOverview();
+      } else showLogin(true);
+    })();
+  </script>
+</body>
+</html>

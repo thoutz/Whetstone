@@ -8,6 +8,8 @@ final class AuthManager: ObservableObject {
     @Published var isAuthenticated = false
     @Published var isLoading       = false
     @Published var errorMessage: String?
+    /// Set from JWT `app_metadata.advanced_mode` (admin-only in Supabase). Drives Profile gate for Advanced Mode.
+    @Published private(set) var isAdvancedUser = false
 
     private(set) var appleSignInNonce: String = ""
 
@@ -18,8 +20,39 @@ final class AuthManager: ObservableObject {
     // MARK: - Session restore
 
     func restoreSession() async {
-        guard let client = SupabaseService.shared.client else { return }
-        isAuthenticated = (try? await client.auth.session) != nil
+        guard let client = SupabaseService.shared.client else {
+            applyAccessToken(nil)
+            return
+        }
+        do {
+            let session = try await client.auth.session
+            applyAccessToken(session.accessToken)
+            isAuthenticated = true
+        } catch {
+            applyAccessToken(nil)
+            isAuthenticated = false
+        }
+    }
+
+    /// Re-read entitlement after token refresh without toggling login UI.
+    func refreshEntitlementFromSession() async {
+        guard let client = SupabaseService.shared.client else {
+            applyAccessToken(nil)
+            return
+        }
+        guard let token = try? await client.auth.session.accessToken else {
+            applyAccessToken(nil)
+            return
+        }
+        applyAccessToken(token)
+    }
+
+    private func applyAccessToken(_ token: String?) {
+        guard let token, !token.isEmpty else {
+            isAdvancedUser = false
+            return
+        }
+        isAdvancedUser = SupabaseJWTHelper.readAdvancedModeEntitlement(accessToken: token)
     }
 
     // MARK: - Apple Sign In
@@ -61,8 +94,12 @@ final class AuthManager: ObservableObject {
                 )
             )
 
+            if let sess = try? await client.auth.session {
+                applyAccessToken(sess.accessToken)
+            }
             isAuthenticated = true
         } catch {
+            applyAccessToken(nil)
             errorMessage = Self.friendlyMessage(error)
         }
     }
@@ -71,6 +108,7 @@ final class AuthManager: ObservableObject {
 
     func signOut() async {
         try? await SupabaseService.shared.client?.auth.signOut(scope: .global)
+        applyAccessToken(nil)
         isAuthenticated = false
         errorMessage = nil
     }

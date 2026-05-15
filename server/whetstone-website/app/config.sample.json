@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to config.json on the server (deploy script). Never commit secrets to git.",
+  "supabaseUrl": "https://YOUR_PROJECT.supabase.co",
+  "supabaseAnonKey": "YOUR_SUPABASE_ANON_KEY",
+  "aiAppToken": "",
+  "aiModel": "meta-llama/llama-4-scout-17b-16e-instruct",
+  "adminOwnerEmailLower": ""
+}

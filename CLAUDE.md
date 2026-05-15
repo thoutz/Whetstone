@@ -10,7 +10,7 @@ for persona, vision-first photo intake, domains, and discipline details.
 2. Delete the generated `ContentView.swift`
 3. Add files: drag the `Whetstone/` source folder into the Xcode project navigator.
    Make sure "Copy items if needed" is **off** and the target membership box is checked.
-4. Add `system_prompt.txt` to the target: select it in the navigator →
+4. Add `system_prompt.txt` and `advanced_system_prompt.txt` to the target: select each in the navigator →
    File Inspector → Target Membership → check Whetstone.
 5. **Standalone AI path (device / TestFlight / App Store):** The app ships **`AI_BASE_URL`**, **`AI_MODEL`**, and optional **`AI_APP_TOKEN`** in **`Whetstone/Info.plist`**. At runtime the phone calls **only your HTTPS proxy** (`…/v1/chat/completions`). **`GROQ_API_KEY` lives on the VPS** (`/etc/whetstone-proxy.env`). No Groq secret is bundled in the app; nothing from Xcode scheme variables is required on a real install — those vars exist only when Xcode launches a debug build and are irrelevant once the binary leaves your Mac.
 
@@ -19,11 +19,13 @@ for persona, vision-first photo intake, domains, and discipline details.
 ```
 Whetstone/
   WhetstoneApp.swift          @main entry point
+  AgentMode.swift             Standard vs Advanced preference + bundled prompts
   WhetstoneTheme.swift        Colors, shapes, shared design constants
   AI/
     AIClient.swift            Protocol, Message/Tool/Completion types, factory
     OpenAIChatClient.swift    OpenAI-compatible client — Groq URL or HTTPS proxy base URL
     MentorTools.swift         render_construction + render_chips + dispatcher
+    AdvancedTools.swift       Advanced Mode: DNS, TCP probes, HTTP, RDAP, SSH, etc. (Citadel)
   Chat/
     ChatMessage.swift         UI-facing message model
     MentorMarkdownView.swift  Mentor prose: markdown blocks + inline styling (no SPM)
@@ -34,14 +36,13 @@ Whetstone/
                               ephemeral pendingChipOffer (render_chips UI)
     SidebarView.swift         Drawer + conversation list (Claude-style grouping)
   Resources/
-    system_prompt.txt         Full mentor persona (loaded from bundle at runtime)
+    system_prompt.txt         Standard mentor persona (bundled default mode)
+    advanced_system_prompt.txt Advanced Mode persona + tool usage notes
 ```
 
 ## Key design decisions
 
-- **Provider-agnostic env vars** (AI_PROVIDER / AI_MODEL / AI_API_KEY) — same pattern
-  as Tavern OS. Swap Ollama/Anthropic by changing the env var; no code change needed
-  once Phase 2 client slots are filled in.
+- **Standard vs Advanced agent mode** — Default is **Standard** (mentor prompt + two tools). **Advanced** requires Supabase JWT `app_metadata.advanced_mode` and a Profile toggle; see `project-docs/advanced-agent-mode.md`. Effective chat mode always falls back to Standard without entitlement.
 - **render_construction** — `dispatchToolCall` in MentorTools.swift returns `SVGPayload`;
   **ChatView** renders SVG inline via **`SVGDiagramWebView`** (WKWebView, scripts off).
 - **render_chips** — Optional tool; mentor emits 2–4 `{label, value}` chips plus UI
@@ -138,7 +139,7 @@ Music (GarageBand walkthroughs, ear training, chord theory) and video.
 ## Hard rules (never relax these)
 
 - No image-generation API key. No representational SVG. See original brief.
-- `render_construction` and `render_chips` are the only tools. Adding more needs deliberate review.
+- `render_construction` and `render_chips` are the only tools **in Standard mode**. **Advanced Mode** (Supabase-gated + user toggle) adds additional on-device tools in `AdvancedTools.swift`; see `project-docs/advanced-agent-mode.md`. Adding more tools still needs deliberate review.
 - Don't add "preview mode" or "just this once" affordances in the UI.
 - Photo annotation: the backend never modifies the image. Overlay only, always.
 - Writing: never draft prose the user could paste in. Hold the line warmly.

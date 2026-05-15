@@ -34,7 +34,8 @@ final class ConversationStore: ObservableObject {
     // MARK: - Private
 
     private let client: AIClient
-    private let systemPrompt: String
+    private let agentModeStore: AgentModeStore
+    private let auth: AuthManager
 
     private var shouldSyncRemote: Bool {
         remotePersistenceEnabled
@@ -42,10 +43,19 @@ final class ConversationStore: ObservableObject {
             && WhetstoneConstants.conversationsAPIBaseURL != nil
     }
 
+    /// Advanced Mode requires both user preference (`AgentModeStore`) and Supabase `app_metadata.advanced_mode`.
+    private var effectiveAgentModeForChat: AgentMode {
+        if agentModeStore.mode == .advanced, auth.isAdvancedUser {
+            return .advanced
+        }
+        return .standard
+    }
+
     // MARK: - Init
 
-    init() {
-        systemPrompt = Self.loadSystemPrompt()
+    init(agentModeStore: AgentModeStore, auth: AuthManager) {
+        self.agentModeStore = agentModeStore
+        self.auth = auth
         do {
             client = try makeAIClient()
         } catch {
@@ -78,7 +88,7 @@ final class ConversationStore: ObservableObject {
         guard shouldSyncRemote else { return }
 
         pendingChipOffer = nil
-        let promptSnapshot = systemPrompt
+        let promptVariants = AgentMode.allBundledPromptStrings
 
         do {
             // One refresh + one Authorization header for the whole hydrate — parallel detail tasks must not each call `refreshSession`.
@@ -105,7 +115,7 @@ final class ConversationStore: ObservableObject {
                         )
                         let decoded = try ConversationHydration.decodeConversation(
                             from: record,
-                            systemPrompt: promptSnapshot
+                            systemPromptVariants: promptVariants
                         )
                         return (i, decoded)
                     }
@@ -459,13 +469,19 @@ final class ConversationStore: ObservableObject {
         defer { isThinking = false }
 
         guard let idx = index(of: conversationId) else { return }
-        var systemHistory: [Message] = [.system(systemPrompt)] + conversations[idx].apiHistory
+        let effectiveModeSnapshot = effectiveAgentModeForChat
+        let systemPromptBlob = AgentMode.bundledPrompt(for: effectiveModeSnapshot)
+        let toolsSnapshot =
+            effectiveModeSnapshot == .advanced ? MentorTools.all + AdvancedTools.all : MentorTools.all
+        let advancedToolsEnabledSnapshot = effectiveModeSnapshot == .advanced
+
+        var systemHistory: [Message] = [.system(systemPromptBlob)] + conversations[idx].apiHistory
 
         while true {
             let started = Date()
             let completion: Completion
             do {
-                completion = try await client.complete(messages: systemHistory, tools: MentorTools.all)
+                completion = try await client.complete(messages: systemHistory, tools: toolsSnapshot)
             } catch {
                 errorBanner = error.localizedDescription
                 schedulePersist(conversationId: conversationId)
@@ -505,7 +521,7 @@ final class ConversationStore: ObservableObject {
 
             var chipsEmitted = false
             for call in completion.toolCalls {
-                let result = dispatchToolCall(call)
+                let result = await dispatchToolCall(call, advancedToolsEnabled: advancedToolsEnabledSnapshot)
                 let toolMsg = Message.toolResult(callId: result.callId, content: result.output)
                 conversations[idx].apiHistory.append(toolMsg)
                 systemHistory.append(toolMsg)
@@ -548,12 +564,6 @@ final class ConversationStore: ObservableObject {
         }
     }
 
-    private static func loadSystemPrompt() -> String {
-        guard let url = Bundle.main.url(forResource: "system_prompt", withExtension: "txt"),
-              let text = try? String(contentsOf: url, encoding: .utf8)
-        else { return "You are Whetstone, a demanding mentor who teaches craft." }
-        return text
-    }
 }
 
 private final class NoopAIClient: AIClient {

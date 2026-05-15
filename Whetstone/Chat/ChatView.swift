@@ -6,6 +6,7 @@ struct ChatView: View {
 
     @EnvironmentObject var store: ConversationStore
     @EnvironmentObject private var auth: AuthManager
+    @EnvironmentObject private var agentModeStore: AgentModeStore
 
     @State private var showProfile = false
 
@@ -31,6 +32,8 @@ struct ChatView: View {
     @State private var keyboardBottomInset: CGFloat = 0
     /// Bumped when the keyboard frame changes while composing; triggers scroll-to-bottom inside `ScrollViewReader`.
     @State private var transcriptScrollToBottomTick: Int = 0
+    /// True once the keyboard has appeared at least once this session; prevents spurious hide-notification side-effects.
+    @State private var keyboardIsVisible = false
 
     /// Cleared when switching threads so the near-limit banner can show again if needed.
     @State private var contextLimitBannerDismissed = false
@@ -77,6 +80,7 @@ struct ChatView: View {
         .sheet(isPresented: $showProfile) {
             ProfileView()
                 .environmentObject(auth)
+                .environmentObject(agentModeStore)
         }
         .alert("Camera access", isPresented: Binding(
             get: { pipSession.authorizationDenied },
@@ -104,12 +108,15 @@ struct ChatView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             let overlap = Self.keyboardOverlap(from: note)
+            if overlap > 1 { keyboardIsVisible = true }
             keyboardBottomInset = overlap
             if inputFocused, overlap > 1 {
                 transcriptScrollToBottomTick &+= 1
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            guard keyboardIsVisible else { return }
+            keyboardIsVisible = false
             keyboardBottomInset = 0
         }
     }
@@ -176,6 +183,13 @@ struct ChatView: View {
                     .tracking(3)
                     .foregroundStyle(WhetstoneTheme.blade.opacity(0.9))
 
+                if agentModeStore.mode == .advanced, auth.isAdvancedUser {
+                    Text("ADVANCED")
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .tracking(1.4)
+                        .foregroundStyle(WhetstoneTheme.ember.opacity(0.9))
+                }
+
                 Spacer()
 
                 if store.isThinking {
@@ -237,12 +251,16 @@ struct ChatView: View {
                 )
                 .scrollDismissesKeyboard(.interactively)
                 .onPreferenceChange(ChatScrollViewportBottomKey.self) { y in
-                    scrollViewportBottomGlobalY = y
-                    refreshJumpToLatestVisibility()
+                    DispatchQueue.main.async {
+                        scrollViewportBottomGlobalY = y
+                        refreshJumpToLatestVisibility()
+                    }
                 }
                 .onPreferenceChange(ChatTranscriptBottomKey.self) { y in
-                    chatTranscriptBottomGlobalY = y
-                    refreshJumpToLatestVisibility()
+                    DispatchQueue.main.async {
+                        chatTranscriptBottomGlobalY = y
+                        refreshJumpToLatestVisibility()
+                    }
                 }
                 .onChange(of: transcriptScrollToBottomTick) { _, _ in
                     withAnimation(.easeOut(duration: 0.28)) {
@@ -1054,8 +1072,27 @@ extension View {
     }
 }
 
+private struct ChatPreviewContainer: View {
+    @StateObject private var auth: AuthManager
+    @StateObject private var mode: AgentModeStore
+    @StateObject private var store: ConversationStore
+
+    init() {
+        let a = AuthManager()
+        let m = AgentModeStore()
+        _auth = StateObject(wrappedValue: a)
+        _mode = StateObject(wrappedValue: m)
+        _store = StateObject(wrappedValue: ConversationStore(agentModeStore: m, auth: a))
+    }
+
+    var body: some View {
+        ChatView()
+            .environmentObject(store)
+            .environmentObject(auth)
+            .environmentObject(mode)
+    }
+}
+
 #Preview {
-    ChatView()
-        .environmentObject(ConversationStore())
-        .environmentObject(AuthManager())
+    ChatPreviewContainer()
 }
