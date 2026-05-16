@@ -1151,17 +1151,48 @@ private struct ThinkingRow: View {
             BladeEdge()
                 .frame(width: WhetstoneTheme.bladeEdgeWidth + WhetstoneTheme.sparkDotSize)
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Thinking…")
                     .font(.system(size: 12, weight: .medium, design: .monospaced))
                     .foregroundStyle(Color.white.opacity(0.42))
-                HoningDots()
+                ThinkingSlashes()
             }
 
             Spacer(minLength: 24)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Mentor is thinking, preparing a response")
+    }
+}
+
+// MARK: - Thinking slashes (in-transcript)
+
+/// Pulsing `///` aligned with `HoningDots` math (`0.15 … 1.0` sine wave, 1.2s loop).
+/// Uses `TimelineView` instead of `withAnimation { phase = 1 }` on `@State` because transcript
+/// rows live in a `ScrollView`/`LazyVStack` with geometry preferences; under heavy layout churn
+/// and AttributeGraph cycle warnings, repeat-forever state animations often stop updating visually.
+/// See `project-docs/thinking-slashes-scrollview-animation-research.md`.
+private struct ThinkingSlashes: View {
+    private static let cycleSeconds = 1.2
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate
+            let phase = (t / Self.cycleSeconds).truncatingRemainder(dividingBy: 1.0)
+            HStack(spacing: 2) {
+                ForEach(0..<3, id: \.self) { i in
+                    Text("/")
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundStyle(WhetstoneTheme.blade)
+                        .opacity(slashOpacity(phase: phase, index: i))
+                }
+            }
+        }
+    }
+
+    private func slashOpacity(phase: Double, index i: Int) -> Double {
+        let shifted = (phase + Double(i) / 3.0).truncatingRemainder(dividingBy: 1.0)
+        return 0.15 + 0.85 * abs(sin(shifted * .pi))
     }
 }
 
